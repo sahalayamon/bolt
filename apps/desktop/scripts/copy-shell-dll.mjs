@@ -18,6 +18,9 @@ mkdirSync(dirname(bundled), { recursive: true });
 copyFileSync(built, bundled);
 for (const profile of ['debug', 'release']) {
   const dir = resolve(app, '../../target', profile);
-  if (existsSync(dir)) copyFileSync(built, join(dir, 'bolt_shell.dll'));
+  if (existsSync(dir)) {
+    copyFileSync(built, join(dir, 'bolt_shell.dll'));
+    copyFileSync(join(app, 'src-tauri', 'icons', 'icon.ico'), join(dir, 'bolt.ico'));
+  }
 }
 console.log('bolt_shell.dll copied');

@@ -49,6 +49,35 @@ fn load_config() -> Config {
         .unwrap_or_default()
 }
 
+/// Folder this DLL was loaded from. Bolt installs it next to `bolt-desktop.exe` and `bolt.ico`, so the menu can
+/// find both without depending on any settings file.
+fn dll_dir() -> Option<PathBuf> {
+    use windows::Win32::System::LibraryLoader::*;
+    unsafe {
+        let mut module = HMODULE::default();
+        GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            PCWSTR(dll_dir as *const () as *const u16),
+            &mut module,
+        )
+        .ok()?;
+        let mut buf = [0u16; 1024];
+        let n = GetModuleFileNameW(Some(module), &mut buf) as usize;
+        if n == 0 || n >= buf.len() {
+            return None;
+        }
+        PathBuf::from(String::from_utf16_lossy(&buf[..n])).parent().map(PathBuf::from)
+    }
+}
+
+/// bolt-desktop.exe: next to this DLL if it is there, otherwise the path Bolt wrote into config.json.
+fn exe_path(cfg: &Config) -> PathBuf {
+    if let Some(p) = dll_dir().map(|d| d.join("bolt-desktop.exe")).filter(|p| p.exists()) {
+        return p;
+    }
+    PathBuf::from(&cfg.exe)
+}
+
 fn alloc_wide(s: &str) -> Result<PWSTR> {
     let w: Vec<u16> = s.encode_utf16().chain(std::iter::once(0)).collect();
     unsafe { SHStrDupW(PCWSTR(w.as_ptr())) }
@@ -77,7 +106,14 @@ impl IExplorerCommand_Impl for Cmd_Impl {
 
     fn GetIcon(&self, _items: Ref<IShellItemArray>) -> Result<PWSTR> {
         match &self.target {
-            Target::Root => alloc_wide(&format!("{},0", load_config().exe)),
+            Target::Root => {
+                // A plain .ico is what Explorer's compact menu draws most reliably; fall back to the exe's icon.
+                let ico = dll_dir().map(|d| d.join("bolt.ico")).filter(|p| p.exists());
+                match ico {
+                    Some(p) => alloc_wide(&p.display().to_string()),
+                    None => alloc_wide(&format!("{},0", exe_path(&load_config()).display())),
+                }
+            }
             _ => Err(E_NOTIMPL.into()),
         }
     }
@@ -96,7 +132,7 @@ impl IExplorerCommand_Impl for Cmd_Impl {
 
     fn Invoke(&self, items: Ref<IShellItemArray>, _bind: Ref<IBindCtx>) -> Result<()> {
         let cfg = load_config();
-        let mut cmd = Command::new(&cfg.exe);
+        let mut cmd = Command::new(exe_path(&cfg));
         match &self.target {
             Target::Root => return Ok(()), // only opens the submenu
             Target::Device(d) => {
@@ -295,6 +331,13 @@ mod tests {
             let top: IExplorerCommand = factory.CreateInstance(None::<&IUnknown>).unwrap();
 
             assert_eq!(title(&top), "Bolt");
+            let icon = {
+                let p = top.GetIcon(None::<&IShellItemArray>).unwrap();
+                let s = p.to_string().unwrap();
+                CoTaskMemFree(Some(p.0 as *const c_void));
+                s
+            };
+            assert!(icon.ends_with("bolt.ico") || icon.ends_with("bolt-desktop.exe,0"), "{icon}");
             assert_eq!(top.GetFlags().unwrap(), 1, "top entry opens a submenu");
             assert_eq!(top.GetState(None::<&IShellItemArray>, false).unwrap(), 0);
 

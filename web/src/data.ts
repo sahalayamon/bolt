@@ -3,7 +3,7 @@ export const REPO = 'https://github.com/sahalayamon/bolt';
 const LATEST = `${REPO}/releases/latest/download`;
 
 /** Shown in the download heading. */
-export const VERSION = 'v3';
+export const VERSION = 'v3.1';
 
 export interface DownloadFile {
   href: string;
@@ -13,7 +13,7 @@ export interface DownloadFile {
 
 export const WINDOWS_EXE: DownloadFile = { href: `${LATEST}/Bolt-windows-x64-setup.exe`, size: '~5 MB' };
 export const WINDOWS_MSI: DownloadFile = { href: `${LATEST}/Bolt-windows-x64.msi`, size: '~7 MB' };
-export const ANDROID_APK: DownloadFile = { href: `${LATEST}/Bolt-android.apk`, size: '~57 MB' };
+export const ANDROID_APK: DownloadFile = { href: `${LATEST}/Bolt-android.apk`, size: '~45 MB' };
 export const CHECKSUMS_URL = `${LATEST}/SHA256SUMS.txt`;
 export const RELEASES_URL = `${REPO}/releases/latest`;
 
