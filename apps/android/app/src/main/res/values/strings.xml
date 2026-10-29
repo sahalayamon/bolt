@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Bolt</string>
+    <string name="widget_description">Send files and turn Bolt on or off from the home screen</string>
+</resources>

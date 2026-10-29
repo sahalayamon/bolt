@@ -1,0 +1,10 @@
+bolt — headless Bolt client
+  bolt [--data DIR] id
+  bolt [--data DIR] receive [--dir DIR] [--port N] [--name NAME] [--pair] [--auto-accept-trusted]
+  bolt [--data DIR] send --to IP[:PORT] [--peer DEVICE_ID] [--name NAME] PATH...
+  bolt [--data DIR] pair --uri 'bolt://pair?...' [--name NAME]
+  bolt discover [--secs N]
+  bolt bench [--mib N]
+  bolt [--data DIR] linktest --to IP[:PORT] [--peer DEVICE_ID] [--mb N]   network-only speed test, both directions
+Tuning for experiments: BOLT_CC=cubic|bbr|reno, BOLT_MTU=1200..9000 (default bbr, 1452).
+Stage timings are printed after each transfer; set RUST_LOG=bolt::timing=info for them in logs.

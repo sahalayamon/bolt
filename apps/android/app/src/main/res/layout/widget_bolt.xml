@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_square"
+    android:gravity="center"
+    android:orientation="horizontal"
+    android:padding="7dp">
+
+    <LinearLayout
+        android:id="@+id/widget_toggle"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="0dp"
+        android:layout_marginEnd="4dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_key"
+        android:contentDescription="Bolt power"
+        android:gravity="center">
+
+        <ImageView
+            android:id="@+id/widget_power_icon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_widget_power" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_send"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="0dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_key"
+        android:contentDescription="Send files"
+        android:gravity="center">
+
+        <ImageView
+            android:id="@+id/widget_send_icon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_widget_send" />
+    </LinearLayout>
+</LinearLayout>

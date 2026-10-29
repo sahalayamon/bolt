@@ -1,0 +1,210 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. Neutral layered surfaces, one restrained accent, hairline separators.
+ * Dark is the default; light overrides under [data-theme='light'].
+ */
+:root {
+  color-scheme: dark;
+  --c-bg: #0b0b0d;
+  --c-surface: #161618; /* grouped content */
+  --c-elevated: #232326; /* controls, hover fills */
+  --c-line: rgb(255 255 255 / 0.09); /* hairline separators */
+  --c-fg: #f5f5f7;
+  --c-muted: #a1a1a8; /* secondary text */
+  --c-faint: #6e6e76; /* tertiary text */
+  --c-accent: #d7f62f;
+  --c-accent-soft: rgb(215 246 47 / 0.16);
+  --c-accent-fg: #14170a;
+  --c-ok: #32d74b;
+  --c-warn: #ffb340;
+  --c-bad: #ff4045;
+  --c-danger: #ff4045; /* solid Cancel / Decline buttons */
+  --c-material: rgb(30 30 33 / 0.72); /* translucent sidebar / toasts */
+  --shadow-pop: 0 18px 50px -12px rgb(0 0 0 / 0.6), 0 0 0 0.5px rgb(255 255 255 / 0.08);
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+  --c-bg: #f5f5f7;
+  --c-surface: #ffffff;
+  --c-elevated: #ececf0;
+  --c-line: rgb(0 0 0 / 0.09);
+  --c-fg: #1d1d1f;
+  --c-muted: #6e6e73;
+  --c-faint: #98989f;
+  --c-accent: #d7f62f;
+  --c-accent-soft: rgb(215 246 47 / 0.14);
+  --c-accent-fg: #14170a;
+  --c-ok: #1f9d3a;
+  --c-warn: #b25e00;
+  --c-bad: #ff4045;
+  --c-danger: #ff4045;
+  --c-material: rgb(246 246 248 / 0.72);
+  --shadow-pop: 0 18px 50px -12px rgb(0 0 0 / 0.25), 0 0 0 0.5px rgb(0 0 0 / 0.08);
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-elevated: var(--c-elevated);
+  --color-line: var(--c-line);
+  --color-fg: var(--c-fg);
+  --color-muted: var(--c-muted);
+  --color-faint: var(--c-faint);
+  --color-accent: var(--c-accent);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-fg: var(--c-accent-fg);
+  --color-ok: var(--c-ok);
+  --color-warn: var(--c-warn);
+  --color-bad: var(--c-bad);
+  --color-danger: var(--c-danger);
+  --color-material: var(--c-material);
+  --shadow-pop: var(--shadow-pop);
+  --radius-control: var(--radius-control);
+  --radius-card: var(--radius-card);
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', system-ui,
+    'Inter', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--c-bg);
+  color: var(--c-fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+/* Type scale (one place, used via utility classes). */
+.t-title {
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 650;
+  letter-spacing: -0.024em;
+}
+.t-section {
+  font-size: 0.9375rem;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+.t-caption {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--c-muted);
+}
+.t-overline {
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-faint);
+}
+
+/* No focus ring anywhere (by design). Text fields only brighten their border while typing. */
+:focus,
+:focus-visible {
+  outline: none;
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: color-mix(in srgb, var(--c-fg) 40%, transparent);
+}
+
+::selection {
+  background: var(--c-accent-soft);
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-line) transparent;
+}
+
+/* Form fields share one look. */
+.field {
+  width: 100%;
+  min-height: 36px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--c-line);
+  background: var(--c-elevated);
+  color: var(--c-fg);
+  padding: 0.4rem 0.75rem;
+  transition:
+    border-color 150ms var(--ease),
+    background-color 150ms var(--ease);
+}
+.field::placeholder {
+  color: var(--c-faint);
+}
+.field:disabled {
+  opacity: 0.5;
+}
+.field[aria-invalid='true'] {
+  border-color: var(--c-bad);
+}
+
+.material {
+  background: var(--c-material);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+}
+
+/* Reduced motion: honour the OS and the in-app override (data-reduce-motion="on"). */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduce-motion='off']) *,
+  :root:not([data-reduce-motion='off']) *::before,
+  :root:not([data-reduce-motion='off']) *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+:root[data-reduce-motion='on'] *,
+:root[data-reduce-motion='on'] *::before,
+:root[data-reduce-motion='on'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+.indeterminate {
+  animation: indeterminate 1.4s var(--ease) infinite;
+}
+
+/* Dotted halo "breathes" while the device avatar is hovered. */
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.09);
+    opacity: 1;
+  }
+}

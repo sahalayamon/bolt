@@ -1,0 +1,19 @@
+[package]
+name = "bolt-cli"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "bolt"
+path = "src/main.rs"
+
+[dependencies]
+bolt-protocol = { path = "../protocol" }
+bolt-security = { path = "../security" }
+bolt-transfer-core = { path = "../transfer-core" }
+bolt-discovery = { path = "../discovery" }
+bolt-transfer-store = { path = "../transfer-store" }
+tokio = { workspace = true, features = ["signal"] }
+tokio-util.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

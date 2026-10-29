@@ -1,0 +1,20 @@
+[package]
+name = "bolt-android"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "bolt_android"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+bolt-protocol = { path = "../protocol" }
+bolt-security = { path = "../security" }
+bolt-discovery = { path = "../discovery" }
+bolt-transfer-core = { path = "../transfer-core" }
+bolt-transfer-store = { path = "../transfer-store" }
+jni = "0.21"
+tokio.workspace = true
+tokio-util.workspace = true
+serde_json.workspace = true
+serde.workspace = true

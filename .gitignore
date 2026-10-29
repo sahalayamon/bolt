@@ -1,0 +1,16 @@
+target/
+node_modules/
+dist/
+*.part
+.gradle/
+build/
+local.properties
+web/public/downloads/*
+!web/public/downloads/README.md
+.flashdrop-data/
+.bolt-data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+identity.*.der
+.claude/settings.local.json

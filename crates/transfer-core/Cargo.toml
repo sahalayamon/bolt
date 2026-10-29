@@ -1,0 +1,24 @@
+[package]
+name = "bolt-transfer-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bolt-protocol = { path = "../protocol" }
+bolt-security = { path = "../security" }
+tokio.workspace = true
+tokio-util.workspace = true
+quinn.workspace = true
+rustls.workspace = true
+blake3.workspace = true
+rand.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+fs4 = "1"
+socket2 = "0.6"
+
+[dev-dependencies]
+tempfile.workspace = true

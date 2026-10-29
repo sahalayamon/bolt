@@ -1,0 +1,13 @@
+[package]
+name = "bolt-transfer-store"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bolt-security = { path = "../security" }
+rusqlite = { version = "0.40", features = ["bundled"] }
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

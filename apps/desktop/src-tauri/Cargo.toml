@@ -1,0 +1,38 @@
+[package]
+name = "bolt-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bolt desktop app (Tauri 2 shell over the Bolt Rust crates)"
+
+[lib]
+name = "bolt_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+drag = "2"
+base64 = "0.22"
+if-addrs = "0.15"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+windows = { version = "0.62", features = ["Win32_System_Com", "Win32_UI_Shell", "Win32_UI_Shell_Common", "Win32_Foundation"] }
+bolt-protocol = { path = "../../../crates/protocol" }
+bolt-security = { path = "../../../crates/security" }
+bolt-transfer-core = { path = "../../../crates/transfer-core" }
+bolt-discovery = { path = "../../../crates/discovery" }
+bolt-transfer-store = { path = "../../../crates/transfer-store" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }

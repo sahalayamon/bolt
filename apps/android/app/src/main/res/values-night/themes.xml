@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.Bolt" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/fd_bg</item>
+    </style>
+</resources>

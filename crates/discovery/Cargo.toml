@@ -1,0 +1,13 @@
+[package]
+name = "bolt-discovery"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bolt-protocol = { path = "../protocol" }
+bolt-security = { path = "../security" }
+mdns-sd = "0.21"
+if-addrs = "0.15"
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
