@@ -903,10 +903,31 @@ impl Core {
     /// Keeps the Explorer submenu in step with the devices (only while the setting is on).
     async fn context_menu_loop(&self) {
         let mut last: Vec<crate::shellmenu::MenuDevice> = Vec::new();
+        let mut last_heal = Instant::now() - Duration::from_secs(120);
         let mut tick = tokio::time::interval(Duration::from_secs(5));
         loop {
             tick.tick().await;
-            let compact = crate::shellext::is_registered();
+            let mut compact = crate::shellext::is_registered();
+            let wanted = lock(&self.settings).context_menu;
+            // You turned the menu on but Windows no longer has it (package removed, Windows update, ...):
+            // register it again, at most once every minute.
+            if wanted
+                && !compact
+                && !crate::shellmenu::is_enabled()
+                && last_heal.elapsed() > Duration::from_secs(60)
+            {
+                last_heal = Instant::now();
+                if let Ok(exe) = std::env::current_exe() {
+                    let devices = self.menu_devices();
+                    let ok = tokio::task::spawn_blocking(move || {
+                        crate::shellext::register(&exe, &devices)
+                    })
+                    .await
+                    .map(|r| r.is_ok())
+                    .unwrap_or(false);
+                    compact = ok && crate::shellext::is_registered();
+                }
+            }
             if !compact && !crate::shellmenu::is_enabled() {
                 last.clear();
                 continue;
@@ -1011,7 +1032,8 @@ fn load_settings(store: &Store, default_download: &std::path::Path) -> SettingsD
         notifications: get("notifications").as_deref() != Some("false"),
         start_on_login: false, // filled from the OS by get_settings
         run_in_background: get("run_in_background").as_deref() != Some("false"),
-        context_menu: false, // filled from the registry by get_settings
+        // what you asked for; get_settings reports the real state (registered or not)
+        context_menu: get("context_menu").as_deref() == Some("true"),
     }
 }
 
@@ -1023,7 +1045,8 @@ pub fn save_settings(store: &Store, s: &SettingsDto) -> Result<(), String> {
     put("theme", &s.theme)?;
     put("reduce_motion", &s.reduce_motion)?;
     put("notifications", &s.notifications.to_string())?;
-    put("run_in_background", &s.run_in_background.to_string())
+    put("run_in_background", &s.run_in_background.to_string())?;
+    put("context_menu", &s.context_menu.to_string())
 }
 
 #[cfg(test)]

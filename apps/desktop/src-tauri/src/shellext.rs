@@ -224,7 +224,8 @@ mod live_tests {
     #[ignore = "registers and then removes the Bolt compact-menu package for the current user"]
     fn registers_and_unregisters_the_sparse_package() {
         assert!(!is_registered(), "already registered; not touching it");
-        let exe = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target/release/bolt-desktop.exe");
+        let exe = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../target/release/bolt-desktop.exe");
         let exe = exe.canonicalize().expect("build the release exe first");
         let devices = vec![("ab".repeat(32), "Test phone".to_string())];
         register(&exe, &devices).expect("Add-AppxPackage failed");

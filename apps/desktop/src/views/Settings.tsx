@@ -141,7 +141,7 @@ export function SettingsView() {
             />
             <Switch
               label="Add Bolt to the right-click menu"
-              description="Right-click files or folders, then Show more options, then Bolt and pick a device. Only for your Windows account."
+              description="Right-click files or folders and choose Bolt, then a device. Needs Windows Developer Mode for the short menu; otherwise it appears under Show more options."
               checked={draft.contextMenu}
               onChange={(v) => patch({ contextMenu: v })}
             />

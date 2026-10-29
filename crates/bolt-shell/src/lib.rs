@@ -260,3 +260,66 @@ pub extern "system" fn DllGetClassObject(
 pub extern "system" fn DllCanUnloadNow() -> HRESULT {
     S_FALSE // stay loaded; the surrogate process unloads us when it is done
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn title(cmd: &IExplorerCommand) -> String {
+        unsafe {
+            let p = cmd.GetTitle(None::<&IShellItemArray>).unwrap();
+            let s = p.to_string().unwrap();
+            CoTaskMemFree(Some(p.0 as *const c_void));
+            s
+        }
+    }
+
+    /// Drives the COM objects directly (no Explorer): class factory -> top command -> submenu from config.json.
+    #[test]
+    fn menu_lists_devices_from_the_config_file() {
+        let dir = std::env::temp_dir().join(format!("bolt-shell-test-{}", std::process::id()));
+        let cfg_dir = dir.join("Bolt").join("shellext");
+        std::fs::create_dir_all(&cfg_dir).unwrap();
+        std::fs::write(
+            cfg_dir.join("config.json"),
+            r#"{"exe":"C:/Bolt/bolt-desktop.exe","devices":[{"id":"aa","name":"Sahal's S25"},{"id":"bb","name":"Office PC"}]}"#,
+        )
+        .unwrap();
+        std::env::set_var("LOCALAPPDATA", &dir);
+
+        unsafe {
+            let mut raw: *mut c_void = std::ptr::null_mut();
+            let iid = IClassFactory::IID;
+            assert_eq!(DllGetClassObject(&CLSID_BOLT, &iid, &mut raw), S_OK);
+            let factory = IClassFactory::from_raw(raw);
+            let top: IExplorerCommand = factory.CreateInstance(None::<&IUnknown>).unwrap();
+
+            assert_eq!(title(&top), "Bolt");
+            assert_eq!(top.GetFlags().unwrap(), 1, "top entry opens a submenu");
+            assert_eq!(top.GetState(None::<&IShellItemArray>, false).unwrap(), 0);
+
+            let en = top.EnumSubCommands().unwrap();
+            let mut got = Vec::new();
+            loop {
+                let mut one: [Option<IExplorerCommand>; 1] = [None];
+                let mut n = 0u32;
+                if en.Next(&mut one, Some(&mut n)).is_err() || n == 0 {
+                    break;
+                }
+                got.push(title(one[0].as_ref().unwrap()));
+            }
+            assert_eq!(
+                got,
+                vec!["Sahal's S25", "Office PC", "Choose a recipient\u{2026}"]
+            );
+            // an unknown class id is refused
+            let mut raw2: *mut c_void = std::ptr::null_mut();
+            let other = GUID::from_u128(1);
+            assert_eq!(
+                DllGetClassObject(&other, &iid, &mut raw2),
+                CLASS_E_CLASSNOTAVAILABLE
+            );
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
