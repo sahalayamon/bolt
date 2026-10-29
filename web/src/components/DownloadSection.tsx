@@ -1,21 +1,8 @@
 import type { ReactNode } from 'react';
-import { ANDROID_APK, VERSION, WINDOWS_EXE, WINDOWS_MSI, type DownloadFile } from '../data';
+import { ANDROID_APK, CHECKSUMS_URL, RELEASES_URL, VERSION, WINDOWS_EXE, WINDOWS_MSI } from '../data';
 import { pointerGlow } from '../hooks/usePointerGlow';
 import { AndroidIcon, WindowsIcon } from './Icons';
 import { Reveal } from './Reveal';
-
-function Hashes({ files }: { files: readonly DownloadFile[] }) {
-  return (
-    <details>
-      <summary>SHA-256</summary>
-      {files.map((f) => (
-        <code key={f.label}>
-          {f.label} {f.sha256}
-        </code>
-      ))}
-    </details>
-  );
-}
 
 interface CardProps {
   icon: ReactNode;
@@ -59,7 +46,6 @@ export function DownloadSection() {
             <a className="alt" href={WINDOWS_MSI.href} download>
               Or the .msi ({WINDOWS_MSI.size})
             </a>
-            <Hashes files={[WINDOWS_EXE, WINDOWS_MSI]} />
             <p className="note">
               Not code-signed yet, so Windows SmartScreen may warn. Choose <i>More info → Run anyway</i>.
             </p>
@@ -69,13 +55,15 @@ export function DownloadSection() {
             <a className="btn btn-lime btn-block" href={ANDROID_APK.href} download>
               Download APK <em>{ANDROID_APK.size}</em>
             </a>
-            <Hashes files={[ANDROID_APK]} />
             <p className="note">
               Test build, signed with a debug key. Allow “install unknown apps” for your browser or file manager to
               install it.
             </p>
           </PlatformCard>
         </div>
+        <Reveal as="p" className="dl-foot">
+          <a href={CHECKSUMS_URL}>SHA-256 checksums</a> · <a href={RELEASES_URL}>All releases &amp; notes</a>
+        </Reveal>
       </div>
     </section>
   );

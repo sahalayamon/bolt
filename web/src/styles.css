@@ -316,3 +316,7 @@ details code { display: block; margin-top: 8px; font-family: var(--mono); font-s
 .more-link svg { width: .72em; height: .72em; flex: none; stroke: var(--lime); transition: transform .35s var(--ease); }
 .more-link:hover { filter: brightness(1.12); }
 .more-link:hover svg { transform: translateX(10px); }
+
+.dl-foot { margin-top: 28px; color: var(--faint); font-size: 15px; }
+.dl-foot a { color: var(--muted); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--line); }
+.dl-foot a:hover { color: var(--lime); }

@@ -1,33 +1,21 @@
-/** Release metadata. Update sizes and SHA-256 values whenever the files in public/downloads change. */
+/** Where releases live. Files are attached by .github/workflows/release.yml when a `v*` tag is pushed. */
+export const REPO = 'https://github.com/sahalayamon/bolt';
+const LATEST = `${REPO}/releases/latest/download`;
+
+/** Shown in the download heading. */
 export const VERSION = 'v3';
 
 export interface DownloadFile {
-  label: string;
   href: string;
+  /** Approximate size, so the label never goes stale between releases. */
   size: string;
-  sha256: string;
 }
 
-export const WINDOWS_EXE: DownloadFile = {
-  label: 'exe',
-  href: 'downloads/Bolt-0.1.0-windows-x64-setup.exe',
-  size: '4.6 MB',
-  sha256: 'ccc5cc6f1b25ea82a3e961d0b1dade37aaac7049d8054ad0dc518b23bdd6b835',
-};
-
-export const WINDOWS_MSI: DownloadFile = {
-  label: 'msi',
-  href: 'downloads/Bolt-0.1.0-windows-x64.msi',
-  size: '6.5 MB',
-  sha256: '2fc9732aefb73e9bdfa02444b18b6a8c1f6e668fd8c973da77ddbfc980e66042',
-};
-
-export const ANDROID_APK: DownloadFile = {
-  label: 'apk',
-  href: 'downloads/Bolt-0.1.0-android.apk',
-  size: '57.1 MB',
-  sha256: '6788782092aed86b1cf845ae989a33cd04d0c159dc2f6124193ceebd3f40d6c0',
-};
+export const WINDOWS_EXE: DownloadFile = { href: `${LATEST}/Bolt-windows-x64-setup.exe`, size: '~5 MB' };
+export const WINDOWS_MSI: DownloadFile = { href: `${LATEST}/Bolt-windows-x64.msi`, size: '~7 MB' };
+export const ANDROID_APK: DownloadFile = { href: `${LATEST}/Bolt-android.apk`, size: '~57 MB' };
+export const CHECKSUMS_URL = `${LATEST}/SHA256SUMS.txt`;
+export const RELEASES_URL = `${REPO}/releases/latest`;
 
 export const NAV_LINKS = [
   { href: '#app', label: 'App' },

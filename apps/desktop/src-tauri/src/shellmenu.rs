@@ -108,14 +108,21 @@ mod tests {
 
     /// Touches the real registry (current user) briefly: run with `--ignored`.
     #[test]
-    #[ignore = "writes and removes HKCU\Software\Classes\*\shell\Bolt"]
+    #[ignore = "writes and then removes the Bolt right-click menu in the current user registry"]
     fn writes_the_submenu_and_removes_it_again() {
-        assert!(!is_enabled(), "a Bolt menu is already installed; not touching it");
+        assert!(
+            !is_enabled(),
+            "a Bolt menu is already installed; not touching it"
+        );
         let devices = vec![
             ("ab".repeat(32), "Sahal's S25".to_string()),
             ("cd".repeat(32), "Tom & Jerry".to_string()),
         ];
-        write(Path::new(r"C:\Program Files\Bolt\bolt-desktop.exe"), &devices).unwrap();
+        write(
+            Path::new(r"C:\Program Files\Bolt\bolt-desktop.exe"),
+            &devices,
+        )
+        .unwrap();
         assert!(is_enabled());
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let sub = hkcu
@@ -123,10 +130,21 @@ mod tests {
             .unwrap();
         let names: Vec<String> = sub.enum_keys().map(|k| k.unwrap()).collect();
         assert_eq!(names, vec!["01_device", "02_device", "99_choose"]);
-        let second: String = sub.open_subkey("02_device").unwrap().get_value("MUIVerb").unwrap();
+        let second: String = sub
+            .open_subkey("02_device")
+            .unwrap()
+            .get_value("MUIVerb")
+            .unwrap();
         assert_eq!(second, "Tom && Jerry");
-        let cmd: String = sub.open_subkey(r"01_device\command").unwrap().get_value("").unwrap();
-        assert!(cmd.contains("--send-to abab") && cmd.ends_with("\"%1\""), "{cmd}");
+        let cmd: String = sub
+            .open_subkey(r"01_device\command")
+            .unwrap()
+            .get_value("")
+            .unwrap();
+        assert!(
+            cmd.contains("--send-to abab") && cmd.ends_with("\"%1\""),
+            "{cmd}"
+        );
         remove();
         assert!(!is_enabled());
     }
