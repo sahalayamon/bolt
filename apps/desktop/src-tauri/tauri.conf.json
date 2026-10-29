@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "cargo build --release -p bolt-shell && node scripts/copy-shell-dll.mjs && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -31,6 +31,7 @@
     "active": true,
     "targets": "all",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "resources": { "shellext/bolt_shell.dll": "bolt_shell.dll" },
     "windows": { "nsis": { "installerHooks": "installer-hooks.nsh" } }
   }
 }

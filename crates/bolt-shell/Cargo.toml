@@ -1,0 +1,18 @@
+[package]
+name = "bolt-shell"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Windows 11 Explorer context-menu handler for Bolt (IExplorerCommand COM server)"
+
+[lib]
+name = "bolt_shell"
+crate-type = ["cdylib"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_Shell_Common"] }
+windows-core = "0.62"

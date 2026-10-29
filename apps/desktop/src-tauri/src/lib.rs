@@ -4,6 +4,7 @@ mod dto;
 mod launch;
 mod netinfo;
 mod reveal;
+mod shellext;
 mod shellmenu;
 
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};

@@ -906,14 +906,20 @@ impl Core {
         let mut tick = tokio::time::interval(Duration::from_secs(5));
         loop {
             tick.tick().await;
-            if !crate::shellmenu::is_enabled() {
+            let compact = crate::shellext::is_registered();
+            if !compact && !crate::shellmenu::is_enabled() {
                 last.clear();
                 continue;
             }
             let now = self.menu_devices();
             if now != last {
                 if let Ok(exe) = std::env::current_exe() {
-                    if crate::shellmenu::write(&exe, &now).is_ok() {
+                    let ok = if compact {
+                        crate::shellext::write_config(&exe, &now).is_ok()
+                    } else {
+                        crate::shellmenu::write(&exe, &now).is_ok()
+                    };
+                    if ok {
                         last = now;
                     }
                 }

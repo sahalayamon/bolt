@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "build:shell": "cargo build --release -p bolt-shell && node scripts/copy-shell-dll.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

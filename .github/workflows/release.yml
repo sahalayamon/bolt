@@ -52,19 +52,21 @@ jobs:
           if-no-files-found: error
 
   android:
-    runs-on: ubuntu-latest
+    # Pinned: this image ships with the Android SDK and sdkmanager preinstalled.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
-
       - name: Install SDK platform and NDK
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018"
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018"
 
       - uses: dtolnay/rust-toolchain@stable
         with:

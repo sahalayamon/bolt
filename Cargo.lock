@@ -471,6 +471,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bolt-shell"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "windows 0.62.2",
+ "windows-core 0.62.2",
+]
+
+[[package]]
 name = "bolt-transfer-core"
 version = "0.1.0"
 dependencies = [

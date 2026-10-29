@@ -279,7 +279,7 @@ pub fn get_settings(core: State<'_, Core>, app: AppHandle) -> SettingsDto {
         .clone();
     // The OS is the source of truth for "start on login".
     s.start_on_login = app.autolaunch().is_enabled().unwrap_or(false);
-    s.context_menu = crate::shellmenu::is_enabled();
+    s.context_menu = crate::shellext::is_registered() || crate::shellmenu::is_enabled();
     s
 }
 
@@ -360,12 +360,30 @@ pub async fn update_settings(
         r.map_err(|e| format!("Could not change start on login: {e}"))?;
     }
     // The right-click entry is a registry setting (current user only), applied when you change the switch.
-    if s.context_menu != crate::shellmenu::is_enabled() {
+    let menu_on = crate::shellext::is_registered() || crate::shellmenu::is_enabled();
+    if s.context_menu != menu_on {
         if s.context_menu {
             let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-            crate::shellmenu::write(&exe, &core.menu_devices())
-                .map_err(|e| format!("Could not add the right-click menu: {e}"))?;
+            let devices = core.menu_devices();
+            // Preferred: the compact Windows 11 menu. It needs Developer Mode; otherwise use the classic menu.
+            match tokio::task::spawn_blocking({
+                let (exe, devices) = (exe.clone(), devices.clone());
+                move || crate::shellext::register(&exe, &devices)
+            })
+            .await
+            .map_err(|e| e.to_string())?
+            {
+                Ok(()) => crate::shellmenu::remove(),
+                Err(why) => {
+                    tracing::warn!(
+                        "compact right-click menu unavailable ({why}); using the classic menu"
+                    );
+                    crate::shellmenu::write(&exe, &devices)
+                        .map_err(|e| format!("Could not add the right-click menu: {e}"))?;
+                }
+            }
         } else {
+            let _ = tokio::task::spawn_blocking(crate::shellext::unregister).await;
             crate::shellmenu::remove();
         }
     }
