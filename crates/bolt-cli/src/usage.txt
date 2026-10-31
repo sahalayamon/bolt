@@ -1,7 +1,7 @@
 bolt — headless Bolt client
   bolt [--data DIR] id
   bolt [--data DIR] receive [--dir DIR] [--port N] [--name NAME] [--pair] [--auto-accept-trusted]
-  bolt [--data DIR] send --to IP[:PORT] [--peer DEVICE_ID] [--name NAME] PATH...
+  bolt [--data DIR] send --to IP[:PORT] [--peer DEVICE_ID] [--name NAME] [--text TEXT_OR_LINK] [PATH...]
   bolt [--data DIR] pair --uri 'bolt://pair?...' [--name NAME]
   bolt discover [--secs N]
   bolt bench [--mib N]

@@ -91,6 +91,9 @@ impl IncomingPair {
 
 #[derive(Debug, Clone)]
 pub struct ReceivedSummary {
+    /// Text and links received in this transfer, in offer order. Untrusted content: show it as
+    /// plain text, and only open a link after an explicit user action.
+    pub texts: Vec<String>,
     pub transfer_id: String,
     pub files: u32,
     pub bytes: u64,
@@ -485,6 +488,15 @@ async fn handle_offer(
     let mut resume = Vec::with_capacity(offer.files.len());
     let mut needed = 0u64;
     for f in &offer.files {
+        if f.kind == ItemKind::Text {
+            // Text lives in memory: nothing to resume, nothing written to disk.
+            resume.push(ResumePoint {
+                index: f.index,
+                offset: 0,
+                complete: false,
+            });
+            continue;
+        }
         let (offset, complete) = match staging.probe(&peer.id, f)? {
             Probe::Complete => (f.size, true),
             Probe::Resume { offset } => (offset, false),
@@ -598,10 +610,16 @@ async fn receive_files(
     let mut buf = vec![0u8; cfg.transfer.clamped_chunk()];
     let mut saved = Vec::with_capacity(offer.files.len());
     let mut keys = Vec::with_capacity(offer.files.len());
+    let mut texts: Vec<String> = Vec::new();
     let mut st = StageTimes::default();
 
     for (fo, rp) in offer.files.iter().zip(resume) {
         reporter.begin_file(&fo.path);
+        if fo.kind == ItemKind::Text {
+            texts.push(receive_text(fo, tx, rx, reporter).await?);
+            reporter.file_done();
+            continue;
+        }
         keys.push(Staging::key(&peer.id, fo));
         if rp.complete {
             reporter.file_done();
@@ -738,6 +756,7 @@ async fn receive_files(
     let path = PathInfo::of(conn);
     tracing::info!(target: "bolt::timing", role = "receive", bytes = offer.total_bytes(), "{st} | {path}");
     Ok(ReceivedSummary {
+        texts,
         transfer_id: offer.transfer_id.clone(),
         files: offer.files.len() as u32,
         bytes: offer.total_bytes(),
@@ -746,6 +765,56 @@ async fn receive_files(
         timings: st,
         path,
     })
+}
+
+/// Receive one in-memory text item: bounded by the validated size, hash-checked, never on disk.
+async fn receive_text(
+    fo: &FileOffer,
+    tx: &mut SendStream,
+    rx: &mut RecvStream,
+    reporter: &mut ProgressReporter,
+) -> Result<String, TransferError> {
+    let Message::FileStart(fs) = read_message(rx).await? else {
+        return Err(TransferError::Protocol("expected FILE_START".into()));
+    };
+    if fs.index != fo.index || fs.offset != 0 || fs.length != fo.size {
+        return Err(TransferError::Protocol(
+            "FILE_START does not match the accepted plan".into(),
+        ));
+    }
+    // fo.size was validated against MAX_TEXT_BYTES, so this allocation is bounded.
+    let mut data = vec![0u8; fo.size as usize];
+    rx.read_exact(&mut data)
+        .await
+        .map_err(|e| TransferError::Connection(e.to_string()))?;
+    reporter.add_bytes(fo.size);
+    let Message::FileComplete(fc) = read_message(rx).await? else {
+        return Err(TransferError::Protocol("expected FILE_COMPLETE".into()));
+    };
+    if fc.index != fo.index || fc.blake3 != blake3::hash(&data).to_hex().to_string() {
+        write_message(
+            tx,
+            &Message::FileAck(FileAck {
+                index: fo.index,
+                ok: false,
+                error: Some("checksum mismatch for text".into()),
+            }),
+        )
+        .await?;
+        return Err(TransferError::Integrity("text".into()));
+    }
+    let text = String::from_utf8(data)
+        .map_err(|_| TransferError::Protocol("text item is not valid UTF-8".into()))?;
+    write_message(
+        tx,
+        &Message::FileAck(FileAck {
+            index: fo.index,
+            ok: true,
+            error: None,
+        }),
+    )
+    .await?;
+    Ok(text)
 }
 
 fn disk_error(e: std::io::Error, staging: &Staging, need: u64) -> TransferError {

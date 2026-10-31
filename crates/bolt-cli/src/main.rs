@@ -5,7 +5,7 @@
 //! Usage:
 //!   bolt [--data DIR] id
 //!   bolt [--data DIR] receive [--dir DIR] [--port N] [--name NAME] [--pair] [--auto-accept-trusted]
-//!   bolt [--data DIR] send --to IP[:PORT] [--peer DEVICE_ID] [--name NAME] PATH...
+//!   bolt [--data DIR] send --to IP[:PORT] [--peer DEVICE_ID] [--name NAME] [--text TEXT_OR_LINK] [PATH...]
 //!   bolt [--data DIR] pair --uri 'bolt://pair?...' [--name NAME]
 //!   bolt discover [--secs N]
 //!   bolt bench [--mib N]
@@ -212,6 +212,11 @@ async fn receive(data: &std::path::Path, mut args: Args) -> Res<()> {
                         String::new(),
                     ),
                 };
+                if let Ok(s) = &result {
+                    for t in &s.texts {
+                        println!("\ntext received:\n{t}");
+                    }
+                }
                 match &result {
                     Ok(s) => println!(
                         "\nreceived {} file(s), {} bytes in {:.2}s ({:.1} MB/s), verified\n  stages: {}\n  path:   {}",
@@ -300,11 +305,15 @@ async fn send(data: &std::path::Path, mut args: Args) -> Res<()> {
         .map(|p| DeviceId::parse(&p))
         .transpose()?;
     let name = args.opt("--name").unwrap_or_else(default_name);
+    let text = args.opt("--text");
     let paths: Vec<PathBuf> = args.0.iter().map(PathBuf::from).collect();
-    if paths.is_empty() {
-        return Err("give at least one file or folder".into());
+    if paths.is_empty() && text.is_none() {
+        return Err("give at least one file or folder, or --text \"...\"".into());
     }
-    let items = scan(&paths)?;
+    let mut items = scan(&paths)?;
+    if let Some(t) = &text {
+        items.push(bolt_transfer_core::SendItem::text(t, 0)?);
+    }
     let (ep, store) = client_endpoint(data).await?;
     let (reporter, rx) = ProgressReporter::new();
     let cancel = CancellationToken::new();

@@ -11,6 +11,8 @@
 //! file can only ever be resumed by the same authenticated sender offering
 //! the same source file version.
 
+#[cfg(test)]
+use bolt_protocol::ItemKind;
 use bolt_protocol::{path::validate_rel_path, FileOffer};
 use bolt_security::DeviceId;
 use serde::{Deserialize, Serialize};
@@ -316,6 +318,7 @@ mod tests {
             path: path.into(),
             size,
             file_id: "v1".into(),
+            kind: ItemKind::File,
         }
     }
     fn sender() -> DeviceId {

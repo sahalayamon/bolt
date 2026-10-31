@@ -74,6 +74,20 @@ pub struct PairResponse {
     pub reason: Option<String>,
 }
 
+/// What an offered item is. `Text` items (plain text or a link) are held in memory by the
+/// receiver and handed to the UI instead of being written to disk. Older peers that do not
+/// know the field treat the item as a small file, so the text is not lost.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ItemKind {
+    #[default]
+    File,
+    Text,
+}
+
+/// Largest text item accepted (bytes of UTF-8). Bounds receiver memory.
+pub const MAX_TEXT_BYTES: u64 = 1024 * 1024;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileOffer {
     pub index: u32,
@@ -83,6 +97,8 @@ pub struct FileOffer {
     /// Opaque sender-chosen identity of the source file version (e.g. size+mtime),
     /// used to decide whether a partial file may be resumed.
     pub file_id: String,
+    #[serde(default)]
+    pub kind: ItemKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -121,6 +137,9 @@ impl TransferOffer {
             }
             if f.file_id.len() > 128 {
                 return Err(ValidationError::BadFileId);
+            }
+            if f.kind == ItemKind::Text && (f.size == 0 || f.size > MAX_TEXT_BYTES) {
+                return Err(ValidationError::BadTextSize(f.size));
             }
         }
         Ok(())
@@ -202,6 +221,8 @@ pub enum ValidationError {
     DuplicatePath(String),
     #[error("file id too long")]
     BadFileId,
+    #[error("text item of {0} bytes is empty or above the limit")]
+    BadTextSize(u64),
     #[error("protocol version {0} is not supported (this build speaks {PROTOCOL_VERSION})")]
     UnsupportedVersion(u16),
 }
@@ -231,6 +252,7 @@ mod tests {
                     path: (*p).into(),
                     size: 1,
                     file_id: "x".into(),
+                    kind: ItemKind::File,
                 })
                 .collect(),
         }

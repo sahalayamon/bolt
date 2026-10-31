@@ -72,3 +72,13 @@ Partials older than 7 days are purged at startup.
 ## Versioning
 `HELLO.protocol` is the major version. Additive changes (new optional fields,
 new message types ignored by older peers only inside new majors) bump ALPN.
+
+## Text and links (`kind: "text"`)
+`FILE_OFFER` items carry an optional `kind` (`"file"` default, or `"text"`). A text item is plain
+UTF-8 (1 byte to 1 MiB) such as a note or a link. It uses the same OFFER → user approval → FILE_START →
+raw bytes → FILE_COMPLETE (BLAKE3) → FILE_ACK exchange as a file, so it needs the same consent and is
+verified the same way, but the receiver keeps it in memory and hands it to the UI
+(`ReceivedSummary.texts`) instead of writing a file. Text items are never resumed. A receiver that does
+not know `kind` treats the item as a small file named `text-N.txt`, so nothing is lost on older builds.
+Receivers must treat the content as untrusted: render it as plain text and open links only after an
+explicit user action.

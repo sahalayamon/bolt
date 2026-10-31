@@ -181,6 +181,11 @@ async fn run(
                 path: it.rel_path.clone(),
                 size: it.size,
                 file_id: it.file_id.clone(),
+                kind: if it.inline.is_some() {
+                    ItemKind::Text
+                } else {
+                    ItemKind::File
+                },
             })
             .collect(),
     };
@@ -233,6 +238,11 @@ async fn run(
             continue;
         }
         let offset = rp.map_or(0, |r| r.offset);
+        if let Some(bytes) = &item.inline {
+            send_inline(&mut tx, &mut rx, fo, bytes, progress, &mut st).await?;
+            progress.file_done();
+            continue;
+        }
         send_one(
             &mut tx, &mut rx, item, fo, offset, &mut buf, progress, &mut st,
         )
@@ -261,6 +271,48 @@ async fn run(
         timings: st,
         path,
     })
+}
+
+/// Send an in-memory text item through the same FILE_START / FILE_COMPLETE / FILE_ACK exchange
+/// as a file, so it gets the same consent step and BLAKE3 verification.
+async fn send_inline(
+    tx: &mut SendStream,
+    rx: &mut RecvStream,
+    fo: &FileOffer,
+    bytes: &[u8],
+    progress: &mut ProgressReporter,
+    st: &mut StageTimes,
+) -> Result<(), TransferError> {
+    write_message(
+        tx,
+        &Message::FileStart(FileStart {
+            index: fo.index,
+            offset: 0,
+            length: bytes.len() as u64,
+        }),
+    )
+    .await?;
+    let t = Instant::now();
+    tx.write_all(bytes).await.map_err(TransferError::from)?;
+    st.net += t.elapsed();
+    st.bytes += bytes.len() as u64;
+    progress.add_bytes(bytes.len() as u64);
+    write_message(
+        tx,
+        &Message::FileComplete(FileComplete {
+            index: fo.index,
+            blake3: blake3::hash(bytes).to_hex().to_string(),
+        }),
+    )
+    .await?;
+    match read_message(rx).await? {
+        Message::FileAck(a) if a.index == fo.index && a.ok => Ok(()),
+        Message::FileAck(a) if a.index == fo.index => Err(TransferError::Integrity(
+            a.error.unwrap_or_else(|| "text".into()),
+        )),
+        Message::TransferError(e) => Err(TransferError::Remote(e.message)),
+        _ => Err(TransferError::Protocol("expected FILE_ACK".into())),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

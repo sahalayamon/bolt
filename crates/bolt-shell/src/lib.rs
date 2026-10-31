@@ -66,13 +66,18 @@ fn dll_dir() -> Option<PathBuf> {
         if n == 0 || n >= buf.len() {
             return None;
         }
-        PathBuf::from(String::from_utf16_lossy(&buf[..n])).parent().map(PathBuf::from)
+        PathBuf::from(String::from_utf16_lossy(&buf[..n]))
+            .parent()
+            .map(PathBuf::from)
     }
 }
 
 /// bolt-desktop.exe: next to this DLL if it is there, otherwise the path Bolt wrote into config.json.
 fn exe_path(cfg: &Config) -> PathBuf {
-    if let Some(p) = dll_dir().map(|d| d.join("bolt-desktop.exe")).filter(|p| p.exists()) {
+    if let Some(p) = dll_dir()
+        .map(|d| d.join("bolt-desktop.exe"))
+        .filter(|p| p.exists())
+    {
         return p;
     }
     PathBuf::from(&cfg.exe)
@@ -337,7 +342,10 @@ mod tests {
                 CoTaskMemFree(Some(p.0 as *const c_void));
                 s
             };
-            assert!(icon.ends_with("bolt.ico") || icon.ends_with("bolt-desktop.exe,0"), "{icon}");
+            assert!(
+                icon.ends_with("bolt.ico") || icon.ends_with("bolt-desktop.exe,0"),
+                "{icon}"
+            );
             assert_eq!(top.GetFlags().unwrap(), 1, "top entry opens a submenu");
             assert_eq!(top.GetState(None::<&IShellItemArray>, false).unwrap(), 0);
 

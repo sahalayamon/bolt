@@ -3,7 +3,7 @@
 
 use crate::*;
 use bolt_protocol::{
-    read_message, write_message, DeviceKind, FileComplete, FileOffer, FileStart, Message,
+    read_message, write_message, DeviceKind, FileComplete, FileOffer, FileStart, ItemKind, Message,
     TransferOffer, PROTOCOL_VERSION,
 };
 use bolt_security::{DeviceId, Identity, MemoryTrustStore, TrustStore, TrustedDevice};
@@ -565,6 +565,7 @@ async fn resume_from_seeded_partial_sends_only_the_remainder() {
         path: "movie.mkv".into(),
         size: items[0].size,
         file_id: items[0].file_id.clone(),
+        kind: ItemKind::File,
     };
     let crate::fsx::Prepared::Partial { file, .. } = st.open(&tx_node.id(), &fo).unwrap() else {
         panic!()
@@ -612,6 +613,7 @@ async fn corrupted_partial_is_caught_by_final_hash_and_never_published() {
         path: "doc.bin".into(),
         size: items[0].size,
         file_id: items[0].file_id.clone(),
+        kind: ItemKind::File,
     };
     let crate::fsx::Prepared::Partial { mut file, .. } = st.open(&tx_node.id(), &fo).unwrap()
     else {
@@ -683,6 +685,7 @@ async fn hostile_offers_are_rejected_without_touching_disk() {
                 path: bad_path.into(),
                 size: 1,
                 file_id: "x".into(),
+                kind: ItemKind::File,
             }],
         };
         write_message(&mut tx, &Message::TransferOffer(offer))
@@ -718,6 +721,7 @@ async fn wrong_hash_from_sender_is_rejected_and_file_not_published() {
             path: "x.bin".into(),
             size: 4,
             file_id: "x".into(),
+            kind: ItemKind::File,
         }],
     };
     write_message(&mut tx, &Message::TransferOffer(offer))
@@ -772,6 +776,7 @@ async fn data_beyond_announced_length_cannot_overflow_the_file() {
             path: "y.bin".into(),
             size: 4,
             file_id: "x".into(),
+            kind: ItemKind::File,
         }],
     };
     write_message(&mut tx, &Message::TransferOffer(offer))
@@ -932,4 +937,90 @@ async fn probe_peer_times_out_when_nothing_listens() {
         .await
         .unwrap();
     assert!(r.is_err());
+}
+
+#[tokio::test]
+async fn text_and_links_arrive_in_memory_and_nothing_is_written_to_disk() {
+    let (rx_node, tx_node) = (Node::new(), Node::new());
+    let (_h, events) = rx_node.start_receiver(false);
+    let mut finished = auto_user(events, true);
+
+    let sent = [
+        "hello wörld 🙂\nsecond line",
+        "https://example.com/a?b=1&c=2",
+    ];
+    let items = vec![
+        SendItem::text(sent[0], 0).unwrap(),
+        SendItem::text(sent[1], 1).unwrap(),
+    ];
+    let summary = send(&rx_node, &tx_node, items).await.unwrap();
+    assert_eq!(summary.files, 2);
+
+    let done = timeout(T, finished.recv()).await.unwrap().unwrap().unwrap();
+    assert_eq!(done.texts, sent);
+    assert!(
+        done.saved_paths.is_empty(),
+        "text must not be saved as a file"
+    );
+    let on_disk: Vec<_> = walk_files(&rx_node.downloads())
+        .into_iter()
+        .filter(|p| !p.to_string_lossy().contains("partial"))
+        .collect();
+    assert!(on_disk.is_empty(), "unexpected files: {on_disk:?}");
+}
+
+#[tokio::test]
+async fn text_mixed_with_files_in_one_transfer() {
+    let (rx_node, tx_node) = (Node::new(), Node::new());
+    let (_h, events) = rx_node.start_receiver(false);
+    let mut finished = auto_user(events, true);
+
+    let p = write_file(tx_node.dir.path(), "note.bin", &pattern(300_000, 2));
+    let mut items = scan(&[p]).unwrap();
+    items.push(SendItem::text("https://bolt.aymn.in", 0).unwrap());
+    send(&rx_node, &tx_node, items).await.unwrap();
+
+    let done = timeout(T, finished.recv()).await.unwrap().unwrap().unwrap();
+    assert_eq!(done.texts, ["https://bolt.aymn.in"]);
+    assert_eq!(done.saved_paths.len(), 1);
+    assert_eq!(
+        fs::read(rx_node.downloads().join("note.bin")).unwrap(),
+        pattern(300_000, 2)
+    );
+}
+
+#[tokio::test]
+async fn declined_text_is_never_delivered() {
+    let (rx_node, tx_node) = (Node::new(), Node::new());
+    let (_h, events) = rx_node.start_receiver(false);
+    let _finished = auto_user(events, false);
+    let err = send(
+        &rx_node,
+        &tx_node,
+        vec![SendItem::text("secret", 0).unwrap()],
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(err, TransferError::Rejected(_)), "{err}");
+}
+
+#[test]
+fn text_items_are_size_limited_on_both_ends() {
+    assert!(SendItem::text("", 0).is_err());
+    let too_big = "x".repeat(bolt_protocol::MAX_TEXT_BYTES as usize + 1);
+    assert!(SendItem::text(&too_big, 0).is_err());
+    assert!(SendItem::text(&"x".repeat(bolt_protocol::MAX_TEXT_BYTES as usize), 0).is_ok());
+
+    // A hostile sender claiming a huge text item is rejected by offer validation.
+    let offer = TransferOffer {
+        transfer_id: "00112233445566778899aabbccddeeff".into(),
+        files: vec![FileOffer {
+            index: 0,
+            path: "text-0.txt".into(),
+            size: bolt_protocol::MAX_TEXT_BYTES + 1,
+            file_id: "x".into(),
+            kind: ItemKind::Text,
+        }],
+    };
+    assert!(offer.validate().is_err());
 }

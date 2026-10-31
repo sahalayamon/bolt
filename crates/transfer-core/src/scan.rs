@@ -25,6 +25,9 @@ pub struct SendItem {
     pub size: u64,
     /// Identity of this file *version* (size + mtime); gates resume.
     pub file_id: String,
+    /// Text or link held in memory. When set, this item is sent as a `Text` item and the
+    /// receiver shows it instead of saving a file.
+    pub inline: Option<Arc<[u8]>>,
 }
 
 impl SendItem {
@@ -42,7 +45,31 @@ impl SendItem {
             rel_path,
             size,
             file_id,
+            inline: None,
         }
+    }
+
+    /// A piece of plain text or a link to send (at most `MAX_TEXT_BYTES`). `n` numbers the item
+    /// within one offer so names stay unique.
+    pub fn text(content: &str, n: usize) -> io::Result<Self> {
+        let bytes = content.as_bytes();
+        if bytes.is_empty() || bytes.len() as u64 > bolt_protocol::MAX_TEXT_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "text must be between 1 byte and {} KiB",
+                    bolt_protocol::MAX_TEXT_BYTES / 1024
+                ),
+            ));
+        }
+        Ok(Self {
+            abs_path: PathBuf::new(),
+            opener: None,
+            rel_path: format!("text-{n}.txt"),
+            size: bytes.len() as u64,
+            file_id: blake3::hash(bytes).to_hex()[..16].to_string(),
+            inline: Some(Arc::from(bytes)),
+        })
     }
 
     pub(crate) fn open_blocking(&self) -> io::Result<fs::File> {
@@ -105,6 +132,7 @@ pub fn scan(paths: &[PathBuf]) -> io::Result<Vec<SendItem>> {
                 rel_path: name,
                 size: meta.len(),
                 file_id: file_id(&meta),
+                inline: None,
             });
         } else if meta.is_dir() {
             walk(p, &name, &mut out)?;
@@ -135,6 +163,7 @@ fn walk(dir: &Path, rel: &str, out: &mut Vec<SendItem>) -> io::Result<()> {
                 rel_path: child,
                 size: meta.len(),
                 file_id: file_id(&meta),
+                inline: None,
             });
         } else if meta.is_dir() {
             walk(&e.path(), &child, out)?;
