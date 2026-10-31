@@ -408,7 +408,7 @@ object Engine {
                     (0 until files.length()).map { files.getJSONObject(it).let { f -> f.getString("path") to f.getLong("size") } },
                     e.optJSONArray("texts")?.let { t -> (0 until t.length()).map { t.getLong(it) } }.orEmpty(),
                 )
-                // text is inert (shown as plain text, never opened by itself) and capped at 1 MiB: no accept card
+                // text is inert (shown as plain text, never opened by itself) and capped at 1 MiB: no accept card, it is shown directly
                 if (o.texts.isNotEmpty() && o.fileCount <= o.texts.size) kotlin.concurrent.thread { NativeBridge.respondOffer(o.id, true, "") }
                 else { clearDone(); _offers.update { it + o } }
             }

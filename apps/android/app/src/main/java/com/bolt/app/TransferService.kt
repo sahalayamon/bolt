@@ -32,7 +32,7 @@ class TransferService : Service() {
     private var wifiLock: WifiManager.WifiLock? = null
     private val shownOffers = HashSet<String>()
     private val shownPairs = HashSet<String>()
-    private var overlay: OfferOverlay? = null
+    private var overlay: CardOverlay? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -114,12 +114,20 @@ class TransferService : Service() {
             combine(Engine.me, Engine.error) { me, err -> me?.name to err }.collect { BoltWidget.refresh(this@TransferService, Engine.isRunning()) }
         }
         scope.launch {
-            // the card on top of other apps: only while Bolt itself is not in front
-            combine(Engine.offers, Engine.appVisible) { offers, visible -> if (visible) null else offers.firstOrNull() }.collect { o ->
-                if (o != null && canShowOverOtherApps(this@TransferService)) {
-                    val ov = overlay ?: OfferOverlay(this@TransferService).also { overlay = it }
-                    ov.show(o)
-                } else overlay?.hide()
+            // the one card on top of other apps, only while Bolt itself is not in front: offer -> progress -> done, or received text
+            combine(Engine.offers, Engine.xfers, Engine.texts, Engine.appVisible) { offers, xfers, texts, visible ->
+                when {
+                    visible -> null
+                    offers.isNotEmpty() -> OverlayCard.Incoming(offers.first())
+                    xfers.isNotEmpty() -> OverlayCard.Progress(xfers.first(), xfers.size - 1)
+                    texts.isNotEmpty() -> OverlayCard.Received(texts.first(), texts.size - 1)
+                    else -> null
+                }
+            }.collect { card ->
+                if (card != null && canShowOverOtherApps(this@TransferService)) {
+                    val ov = overlay ?: CardOverlay(this@TransferService).also { overlay = it }
+                    ov.post(card)
+                } else overlay?.let { if (card == null) it.post(null) else it.hide() }
             }
         }
         scope.launch {

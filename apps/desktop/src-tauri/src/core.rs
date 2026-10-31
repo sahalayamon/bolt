@@ -804,9 +804,17 @@ impl Core {
                             .collect(),
                         download_dir: lock(&self.settings).download_dir.clone(),
                     };
-                    lock(&self.offers).insert(id, o);
-                    self.attention();
-                    self.emit("incoming-offer", dto);
+                    // A note or link needs no Accept step: it is plain text (at most 1 MiB, shown as text
+                    // only), so it is taken straight away and the received-text dialog shows it.
+                    let text_only = !o.offer.files.is_empty()
+                        && o.offer.files.iter().all(|f| f.kind == ItemKind::Text);
+                    lock(&self.offers).insert(id.clone(), o);
+                    if text_only {
+                        let _ = self.respond_offer(&id, true, None);
+                    } else {
+                        self.attention();
+                        self.emit("incoming-offer", dto);
+                    }
                 }
                 IncomingEvent::PairRequested(p) => {
                     let id = self.new_id("p");

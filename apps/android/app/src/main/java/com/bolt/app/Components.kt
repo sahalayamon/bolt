@@ -247,10 +247,10 @@ fun EmptyState(icon: ImageVector, title: String, body: String, modifier: Modifie
 /** Bottom sheet for decisions that need an answer (incoming offer, pairing request). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DecisionSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+fun DecisionSheet(onDismiss: () -> Unit, containerColor: Color = Fd.colors.surfaceRaised, content: @Composable ColumnScope.() -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = Radius.sheet, containerColor = Fd.colors.surfaceRaised, contentColor = Fd.colors.text, tonalElevation = 0.dp,
+        shape = Radius.sheet, containerColor = containerColor, contentColor = Fd.colors.text, tonalElevation = 0.dp,
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = Space.page).padding(bottom = Space.xl), verticalArrangement = Arrangement.spacedBy(Space.m), content = content)
     }

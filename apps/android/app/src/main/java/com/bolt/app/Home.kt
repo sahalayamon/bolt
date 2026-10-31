@@ -93,7 +93,7 @@ private val Glyph = Color(0xFF14170A) // dark glyphs on lime accent bubbles
 
 /** Line-art device glyphs, drawn so no icon pack is needed. */
 @Composable
-private fun DeviceGlyph(kind: String, modifier: Modifier = Modifier, tint: Color = Glyph) {
+fun DeviceGlyph(kind: String, modifier: Modifier = Modifier, tint: Color = Glyph) {
     Canvas(modifier) {
         val w = size.width; val h = size.height
         val sw = w * 0.07f

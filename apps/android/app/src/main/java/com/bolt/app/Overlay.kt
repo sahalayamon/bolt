@@ -5,14 +5,19 @@ import android.graphics.PixelFormat
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,11 +50,18 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 /** True when the user allowed "Display over other apps" for Bolt. */
 fun canShowOverOtherApps(ctx: Context) = Settings.canDrawOverlays(ctx)
 
+/** What the floating card shows: an incoming offer, the transfer after it, or text someone sent. */
+sealed interface OverlayCard {
+    data class Incoming(val offer: Offer) : OverlayCard
+    data class Progress(val xfer: Xfer, val more: Int) : OverlayCard
+    data class Received(val text: ReceivedText, val more: Int) : OverlayCard
+}
+
 /**
- * The accept / decline card as a window on top of whatever app is in front, so an incoming transfer can be
- * answered without opening Bolt. It is the same [OfferContent] as the home screen, in the same panel style.
+ * One card as a window on top of whatever app is in front, so incoming transfers can be answered and followed
+ * without opening Bolt. The card stays put and its content morphs: accept card -> progress -> done.
  */
-class OfferOverlay(private val ctx: Context) : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
+class CardOverlay(private val ctx: Context) : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
     private val registry = LifecycleRegistry(this)
     private val controller = SavedStateRegistryController.create(this)
     private val store = ViewModelStore()
@@ -59,9 +71,14 @@ class OfferOverlay(private val ctx: Context) : LifecycleOwner, SavedStateRegistr
 
     private val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var view: ComposeView? = null
+    private var kind by mutableStateOf("offer")
     private var offer by mutableStateOf<Offer?>(null)
+    private var xfer by mutableStateOf<Xfer?>(null)
+    private var text by mutableStateOf<ReceivedText?>(null)
+    private var more by mutableStateOf(0)
     private val visibleState = MutableTransitionState(false)
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pendingHide: Runnable? = null
     private var removal: Runnable? = null
 
     init {
@@ -69,21 +86,36 @@ class OfferOverlay(private val ctx: Context) : LifecycleOwner, SavedStateRegistr
         registry.currentState = Lifecycle.State.RESUMED
     }
 
-    fun show(o: Offer) {
-        offer = o
+    /** Show [card], or (null) slide the card away after a short grace so offer -> progress never flickers. */
+    fun post(card: OverlayCard?) {
+        pendingHide?.let { main.removeCallbacks(it) }
+        pendingHide = null
+        if (card == null) {
+            if (view == null) return
+            pendingHide = Runnable { hide() }.also { main.postDelayed(it, 700) }
+            return
+        }
+        when (card) {
+            is OverlayCard.Incoming -> { offer = card.offer; kind = "offer" }
+            is OverlayCard.Progress -> { xfer = card.xfer; more = card.more; kind = "xfer" }
+            is OverlayCard.Received -> { text = card.text; more = card.more; kind = "text" }
+        }
+        show()
+    }
+
+    private fun show() {
         removal?.let { main.removeCallbacks(it) }
         removal = null
         visibleState.targetState = true
         if (view != null) return
         val v = ComposeView(ctx).apply {
-            setViewTreeLifecycleOwner(this@OfferOverlay)
-            setViewTreeSavedStateRegistryOwner(this@OfferOverlay)
-            setViewTreeViewModelStoreOwner(this@OfferOverlay)
+            setViewTreeLifecycleOwner(this@CardOverlay)
+            setViewTreeSavedStateRegistryOwner(this@CardOverlay)
+            setViewTreeViewModelStoreOwner(this@CardOverlay)
             setContent {
                 val mode by Engine.themeMode.collectAsState()
                 BoltTheme(mode) {
-                    val shown = offer ?: return@BoltTheme
-                    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 16.dp), contentAlignment = Alignment.BottomCenter) {
+                    Box(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 2.dp), contentAlignment = Alignment.BottomCenter) {
                         AnimatedVisibility(
                             visibleState,
                             enter = slideInVertically(tween(460, easing = Motion.ease)) { it } + fadeIn(tween(300)),
@@ -93,7 +125,27 @@ class OfferOverlay(private val ctx: Context) : LifecycleOwner, SavedStateRegistr
                                 Modifier.widthIn(max = 560.dp).fillMaxWidth().shadow(18.dp, RoundedCornerShape(28.dp))
                                     .clip(RoundedCornerShape(28.dp)).background(Fd.colors.surface)
                                     .padding(horizontal = Space.page, vertical = Space.l),
-                            ) { OfferContent(shown) }
+                            ) {
+                                // the card keeps its place; only what is inside it changes
+                                AnimatedContent(
+                                    targetState = kind,
+                                    // A plain cross-fade, no scaling and no animated resizing: the window is wrap-content, so animating the
+                                    // card's size means re-laying-out a system window every frame, which is what made this stutter.
+                                    transitionSpec = {
+                                        (fadeIn(tween(240)) togetherWith fadeOut(tween(160))).using(SizeTransform(clip = false) { _, _ -> snap() })
+                                    },
+                                    label = "card",
+                                ) { k ->
+                                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.m)) {
+                                        val o = offer; val x = xfer; val t = text
+                                        when {
+                                            k == "offer" && o != null -> OfferContent(o)
+                                            k == "xfer" && x != null -> TransferPanelContent(x, more)
+                                            k == "text" && t != null -> ReceivedTextBody(t, more)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -106,17 +158,24 @@ class OfferOverlay(private val ctx: Context) : LifecycleOwner, SavedStateRegistr
             PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.BOTTOM }
         runCatching { wm.addView(v, lp); view = v }
+        // A wrap-content overlay can be left at zero height until something forces a relayout (a swipe on the navigation
+        // handle did it). The card grows after its first composition, so ask the window manager to measure again.
+        listOf(0L, 60L, 200L, 500L, 1200L).forEach { d ->
+            main.postDelayed({ if (view === v) runCatching { v.requestLayout(); wm.updateViewLayout(v, lp) } }, d)
+        }
     }
 
     /** Slide the card away, then drop the window. */
     fun hide() {
+        pendingHide?.let { main.removeCallbacks(it) }
+        pendingHide = null
         if (view == null) return
         visibleState.targetState = false
         removal?.let { main.removeCallbacks(it) }
         removal = Runnable {
             view?.let { runCatching { wm.removeView(it) } }
             view = null
-            offer = null
+            offer = null; xfer = null; text = null
             removal = null
         }.also { main.postDelayed(it, 380) }
     }

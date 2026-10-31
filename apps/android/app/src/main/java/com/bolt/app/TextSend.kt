@@ -7,10 +7,13 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -75,62 +78,75 @@ fun TextSendSheet(initial: String, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
     val devices by Engine.devices.collectAsState()
     var text by remember { mutableStateOf(initial) }
-    // "address" = the typed ip[:port]; otherwise a device id. A lone device is picked for you.
-    var target by remember { mutableStateOf(Engine.armed.value?.id ?: devices.singleOrNull()?.id) }
+    // Tapping a device sends straight away, like it does for files. "address" = the typed ip[:port], sent with the Send button.
+    var target by remember { mutableStateOf<String?>(null) }
     var manual by remember { mutableStateOf(Engine.lastManual) }
     var err by remember { mutableStateOf<String?>(null) }
     val tooBig = text.toByteArray(Charsets.UTF_8).size > MAX_TEXT_BYTES
 
-    DecisionSheet(onDismiss) {
+    DecisionSheet(onDismiss, c.surface) {
         Text("Send text or a link", style = MaterialTheme.typography.titleLarge, color = c.text)
-        FdField(text, { text = it; err = null }, "Type or paste text, or a link", singleLine = false, maxLines = 6, isError = tooBig)
+        FdField(text, { text = it; Engine.textDraft.value = it; err = null }, "Type or paste text, or a link", singleLine = false, maxLines = 6, isError = tooBig)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 if (tooBig) "Too long. The limit is 1 MiB." else "${text.length} character${if (text.length == 1) "" else "s"}",
                 Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = if (tooBig) c.bad else c.textSecondary,
             )
-            FdButton("Paste", { pasteFromClipboard(ctx)?.let { text = it; err = null } }, style = BtnStyle.Secondary, fill = false, height = 40.dp)
+            FdButton("Paste", { pasteFromClipboard(ctx)?.let { text = it; Engine.textDraft.value = it; err = null } }, style = BtnStyle.Secondary, fill = false, height = 40.dp)
         }
         Text("Send to", style = MaterialTheme.typography.labelMedium, color = c.textSecondary)
         if (devices.isEmpty()) Text("No devices found on this network yet. You can still send to an address.", style = MaterialTheme.typography.bodyMedium, color = c.textTertiary)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s)) {
-            devices.forEach { d -> TargetChip(d.name, target == d.id) { target = d.id; err = null } }
-            TargetChip("Address", target == "address") { target = "address"; err = null }
+            devices.forEach { d ->
+                DeviceChip(d, target != "address") {
+                    err = if (text.isBlank()) "Type or paste something to send first." else if (tooBig) "Too long. The limit is 1 MiB." else Engine.sendText(d.addr, d.id, d.name, text)
+                    if (err == null) onDismiss()
+                }
+            }
+            AddressChip(true) { target = if (target == "address") null else "address"; err = null }
         }
         if (target == "address") {
             FdField(manual, { manual = it; Engine.lastManual = it; err = null }, "192.168.1.20:47600", isError = err != null)
         }
         err?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = c.bad) }
         Row(horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-        FdButton("Cancel", onDismiss, Modifier.weight(1f), BtnStyle.Secondary, fill = false)
-        FdButton(
-            "Send",
-            {
-                val dev = devices.firstOrNull { it.id == target }
-                err = when {
-                    target == "address" -> Engine.sendText(manual.trim(), "", manual.trim(), text)
-                    dev != null -> Engine.sendText(dev.addr, dev.id, dev.name, text)
-                    else -> "Choose where to send it."
-                }
-                if (err == null) onDismiss()
-            },
-            Modifier.weight(1f), fill = false,
-            enabled = text.isNotBlank() && !tooBig && target != null && (target != "address" || manual.isNotBlank()),
-        )
+            FdButton("Cancel", onDismiss, Modifier.weight(1f), BtnStyle.Danger, fill = false, height = 46.dp)
+            if (target == "address") FdButton(
+                "Send",
+                {
+                    err = Engine.sendText(manual.trim(), "", manual.trim(), text)
+                    if (err == null) onDismiss()
+                },
+                Modifier.weight(1f), fill = false, height = 46.dp,
+                enabled = text.isNotBlank() && !tooBig && manual.isNotBlank(),
+            )
         }
     }
 }
 
 @Composable
-private fun TargetChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun DeviceChip(d: Device, selected: Boolean, onClick: () -> Unit) {
+    val c = Fd.colors
+    Row(
+        Modifier.alpha(if (selected) 1f else 0.5f).height(46.dp).clip(RoundedCornerShape(23.dp)).background(c.accentSoft)
+            .clickable(role = Role.RadioButton, onClick = onClick).padding(start = Space.s, end = Space.l),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(34.dp).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {
+            DeviceGlyph(d.kind, Modifier.size(26.dp))
+        }
+        Text(d.name, Modifier.padding(start = Space.s), style = MaterialTheme.typography.labelLarge, color = c.text, maxLines = 1)
+    }
+}
+
+@Composable
+private fun AddressChip(selected: Boolean, onClick: () -> Unit) {
     val c = Fd.colors
     Box(
-        Modifier.height(40.dp).clip(RoundedCornerShape(20.dp)).background(if (selected) c.accent else c.accentSoft)
-            .clickable(role = Role.RadioButton, onClick = onClick).padding(horizontal = Space.l),
+        Modifier.alpha(if (selected) 1f else 0.5f).size(46.dp).clip(CircleShape).background(c.accentSoft)
+            .clickable(role = Role.RadioButton, onClickLabel = "Send to an address", onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) c.onAccent else c.accent, maxLines = 1)
-    }
+    ) { DeviceGlyph("address", Modifier.size(34.dp), c.accent) }
 }
 
 /**
@@ -139,11 +155,17 @@ private fun TargetChip(label: String, selected: Boolean, onClick: () -> Unit) {
  */
 @Composable
 fun ReceivedTextSheet(t: ReceivedText, more: Int) {
+    DecisionSheet({ Engine.dismissText(t.id) }, Fd.colors.surface) { ReceivedTextBody(t, more) }
+}
+
+/** The content of the received-text card: shared by the in-app sheet and the card over other apps. */
+@Composable
+fun ColumnScope.ReceivedTextBody(t: ReceivedText, more: Int) {
     val c = Fd.colors
     val ctx = LocalContext.current
     val url = remember(t.id) { webUrlOrNull(t.text) }
     val shown = if (t.text.length > SHOWN_CHARS) t.text.take(SHOWN_CHARS) + "…" else t.text
-    DecisionSheet({ Engine.dismissText(t.id) }) {
+    run {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s)) {
             PickIcon(if (url != null) "link" else "text", c.accent, Modifier.size(26.dp))
             Text("${if (url != null) "Link" else "Text"} from ${t.peer}", style = MaterialTheme.typography.titleLarge, color = c.text)
@@ -156,9 +178,9 @@ fun ReceivedTextSheet(t: ReceivedText, more: Int) {
         if (url != null) Text("Only open links from people you trust.", style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
         if (more > 0) Text("+$more more", style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
         Row(horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-            FdButton("Done", { Engine.dismissText(t.id) }, Modifier.weight(1f), BtnStyle.Secondary, fill = false)
-            FdButton("Copy", { copyToClipboard(ctx, t.text) }, Modifier.weight(1f), if (url == null) BtnStyle.Primary else BtnStyle.Secondary, fill = false)
-            if (url != null) FdButton("Open", { openLink(ctx, url) }, Modifier.weight(1f), BtnStyle.Primary, fill = false)
+            FdButton("Done", { Engine.dismissText(t.id) }, Modifier.weight(1f), BtnStyle.Secondary, fill = false, height = 46.dp)
+            FdButton("Copy", { copyToClipboard(ctx, t.text); Engine.dismissText(t.id) }, Modifier.weight(1f), if (url == null) BtnStyle.Primary else BtnStyle.Secondary, fill = false, height = 46.dp)
+            if (url != null) FdButton("Open", { openLink(ctx, url) }, Modifier.weight(1f), BtnStyle.Primary, fill = false, height = 46.dp)
         }
     }
 }

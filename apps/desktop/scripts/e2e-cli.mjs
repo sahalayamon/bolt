@@ -248,19 +248,17 @@ try {
   const note = '<b>hi</b> from the CLI é';
   start(CLI, ['--data', dirs['cli2-data'], 'send', '--to', `127.0.0.1:${APP_PORT}`, '--name', 'CLI-Sender', '--text', note]);
   const offerCard = () => js(`!!document.querySelector('[role=dialog] [data-testid=offer-text-card]')`);
-  await until(offerCard, 20000, 'text offer');
-  const textOffer = await js(`document.querySelector('[role=dialog]').innerText`);
-  check('offer dialog is a text card: no file name, size, image or folder row', !/text-0|\.txt|bytes?|\d\s?B|Save to/.test(textOffer) && /Text/.test(textOffer) && (await js(`!document.querySelector('[role=dialog] img')`)), textOffer.replace(/\s+/g, ' ').slice(0, 100));
-  await clickButton('Accept');
+  let sawOffer = false;
+  const watch = setInterval(async () => { sawOffer ||= await offerCard().catch(() => false); }, 50);
   await until(() => js(`!!document.querySelector('[role=dialog] textarea[data-testid=received-text]')`), 20000, 'received text dialog');
+  clearInterval(watch);
+  check('text arrives with no Accept/Decline step (offer card never shown)', !sawOffer);
   check('received text is shown as plain text (no HTML parsed), no Open for non-URL', await js(`(() => { const d=[...document.querySelectorAll('[role=dialog]')].find(d=>d.querySelector('textarea[data-testid=received-text]')); const box=d.querySelector('textarea[data-testid=received-text]'); return !!box && box.readOnly && box.value===${JSON.stringify(note)} && !d.querySelector('b') && !/\.txt|folder/i.test(d.innerText) && ![...d.querySelectorAll('button')].some(b=>b.textContent.includes('Open')); })()`));
   await shot('03b-received-text');
   await js(`[...document.querySelectorAll('[role=dialog]')].find(d=>d.innerText.includes('from CLI-Sender'))?.querySelectorAll('button')?.forEach((b) => b.textContent.trim() === 'Done' && b.click())`);
   await sleep(700);
   // CLI -> app: a link gets an Open button that is never clicked automatically.
   start(CLI, ['--data', dirs['cli2-data'], 'send', '--to', `127.0.0.1:${APP_PORT}`, '--name', 'CLI-Sender', '--text', 'https://bolt.aymn.in']);
-  await until(offerCard, 20000, 'link offer');
-  await clickButton('Accept');
   await until(() => js(`[...document.querySelectorAll('[role=dialog] textarea')].some(t=>t.value==='https://bolt.aymn.in')`), 20000, 'received link dialog');
   check('a received http(s) link shows Open (not auto-opened)', await js(`[...document.querySelectorAll('[role=dialog]')].some(d=>d.innerText.includes('Link from CLI-Sender') && [...d.querySelectorAll('button')].some(b=>b.textContent.includes('Open')))`));
   await shot('03c-received-link');
@@ -283,8 +281,8 @@ try {
   check('app→CLI text together with a file delivered', cliRx.out.includes('with a file'));
   await sleep(500);
   check('sent popup is still there (no timer)', await js(`[...document.querySelectorAll('[role=dialog]')].some(d=>d.innerText.includes('Sent successfully'))`));
-  const pop = start(CLI, ['--data', dirs['cli2-data'], 'send', '--to', `127.0.0.1:${APP_PORT}`, '--name', 'CLI-Sender', '--text', 'popup replaces']);
-  await until(() => js(`!!document.querySelector('[role=dialog] [data-testid=offer-text-card]')`), 20000, 'offer over sent popup');
+  const pop = start(CLI, ['--data', dirs['cli2-data'], 'send', '--to', `127.0.0.1:${APP_PORT}`, '--name', 'CLI-Sender', join(folder, 'a.jpg')]);
+  await until(() => dialogText('a.jpg'), 20000, 'offer over sent popup');
   await sleep(600);
   check('a new offer dismisses the sent popup automatically', await js(`![...document.querySelectorAll('[role=dialog]')].some(d=>d.innerText.includes('Sent successfully'))`));
   await clickButton('Decline');

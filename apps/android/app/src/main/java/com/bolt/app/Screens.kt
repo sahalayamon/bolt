@@ -100,7 +100,8 @@ fun BoltApp(picks: Pickers) {
     if (dest != null) offers.firstOrNull()?.let { OfferSheet(it) }
     if (offers.isEmpty()) pairReqs.firstOrNull()?.let { PairRequestSheet(it) }
     val draft by Engine.textDraft.collectAsState()
-    draft?.let { d -> TextSendSheet(d) { Engine.textDraft.value = null } }
+    // an incoming offer or pairing request always comes first: the compose sheet steps aside (its text is kept in the draft) and returns after
+    if (offers.isEmpty() && pairReqs.isEmpty()) draft?.let { d -> TextSendSheet(d) { Engine.textDraft.value = null } }
     val texts by Engine.texts.collectAsState()
     if (offers.isEmpty() && pairReqs.isEmpty() && draft == null) texts.firstOrNull()?.let { ReceivedTextSheet(it, texts.size - 1) }
 }
