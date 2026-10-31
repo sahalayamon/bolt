@@ -11,6 +11,7 @@ import type {
   HistoryFilter,
   Offer,
   PairRequest,
+  ReceivedText,
   PairingInfo,
   ScanSummary,
   SendTarget,
@@ -26,6 +27,8 @@ export interface EventMap {
   'history-changed': null;
   'incoming-offer': Offer;
   'incoming-pair': PairRequest;
+  /** Text or links that arrived; untrusted, show as plain text. */
+  'text-received': ReceivedText;
   'pair-code': string;
   /** Sent by the tray dashboard to the main window. */
   navigate: string;
@@ -42,8 +45,8 @@ export const api = {
   renameTrusted: (id: string, name: string) => invoke<void>('rename_trusted', { id, name }),
   revokeTrusted: (id: string) => invoke<void>('revoke_trusted', { id }),
   scanPaths: (paths: string[]) => invoke<ScanSummary>('scan_paths', { paths }),
-  startSend: (paths: string[], target: SendTarget) =>
-    invoke<Transfer>('start_send', { paths, target }),
+  startSend: (paths: string[], target: SendTarget, text?: string) =>
+    invoke<Transfer>('start_send', { paths, target, text: text ?? null }),
   listTransfers: () => invoke<Transfer[]>('list_transfers'),
   cancelTransfer: (id: string) => invoke<void>('cancel_transfer', { id }),
   retryTransfer: (id: string) => invoke<Transfer>('retry_transfer', { id }),
@@ -63,6 +66,8 @@ export const api = {
   revealTransfer: (id: string) => invoke<void>('reveal_transfer', { id }),
   /** Opens a received file with its default app (never launches programs). Works for history entries too. */
   openReceived: (id: string) => invoke<void>('open_received', { id }),
+  /** Opens an http(s) link in the default browser (the backend rejects anything else). */
+  openLink: (url: string) => invoke<void>('open_link', { url }),
   /** Data URL of the first received picture (null for other file types). */
   receivedPreview: (id: string) => invoke<string | null>('received_preview', { id }),
   /** Starts a native drag of the received files (drop them into any app or folder). */

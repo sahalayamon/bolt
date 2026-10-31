@@ -3,7 +3,7 @@ export const REPO = 'https://github.com/sahalayamon/bolt';
 const LATEST = `${REPO}/releases/latest/download`;
 
 /** Shown in the download heading. */
-export const VERSION = 'v4';
+export const VERSION = 'v5';
 
 export interface DownloadFile {
   href: string;

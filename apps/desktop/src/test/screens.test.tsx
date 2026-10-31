@@ -58,8 +58,8 @@ const offer = (p: Partial<Offer> = {}): Offer => ({
   freeSpace: 10 * 1024 ** 3,
   fileCount: 2,
   files: [
-    { path: 'photos/a.jpg', size: 1024 * 1024 },
-    { path: 'photos/b.jpg', size: 2 * 1024 * 1024 },
+    { path: 'photos/a.jpg', size: 1024 * 1024, kind: 'file' },
+    { path: 'photos/b.jpg', size: 2 * 1024 * 1024, kind: 'file' },
   ],
   downloadDir: 'C:\\Downloads\\Bolt',
   ...p,

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowDownToLine, ArrowUpFromLine, History as HistoryIcon, Search, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, History as HistoryIcon, Link2, Search, Trash2, Type } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
 import { formatBytes, formatWhen, plural } from '../lib/format';
+import { textLabelOf, textPreviewOf } from '../lib/text';
 import { useApp } from '../store/app';
 import { Badge, Button, Card, EmptyState, IconTile, Modal, PageHeader, Segmented } from '../components/ui';
 import type { HistoryEntry, HistoryStatus } from '../lib/types';
@@ -128,17 +129,30 @@ export function HistoryView() {
             {rows.map((r) => (
               <li key={r.transferId} className="flex items-center gap-3 px-4 py-3 max-sm:flex-wrap" data-testid="history-row">
                 <IconTile>
-                  {r.direction === 'sent' ? (
+                  {textPreviewOf(r.title) !== null ? (
+                    textLabelOf(textPreviewOf(r.title) ?? '') === 'Link' ? (
+                      <Link2 className="h-[17px] w-[17px]" strokeWidth={1.75} aria-label="Link" />
+                    ) : (
+                      <Type className="h-[17px] w-[17px]" strokeWidth={1.75} aria-label="Text" />
+                    )
+                  ) : r.direction === 'sent' ? (
                     <ArrowUpFromLine className="h-[17px] w-[17px]" strokeWidth={1.75} aria-label="Sent" />
                   ) : (
                     <ArrowDownToLine className="h-[17px] w-[17px]" strokeWidth={1.75} aria-label="Received" />
                   )}
                 </IconTile>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium" title={r.title}>
-                    {r.title || 'Files'}
-                    {r.fileCount > 1 && <span className="text-muted"> +{r.fileCount - 1} more</span>}
-                  </p>
+                  {textPreviewOf(r.title) !== null ? (
+                    <p className="truncate font-medium" title={textPreviewOf(r.title) ?? undefined}>
+                      {textLabelOf(textPreviewOf(r.title) ?? '')}
+                      <span className="font-normal text-muted"> · {textPreviewOf(r.title)}</span>
+                    </p>
+                  ) : (
+                    <p className="truncate font-medium" title={r.title}>
+                      {r.title || 'Files'}
+                      {r.fileCount > 1 && <span className="text-muted"> +{r.fileCount - 1} more</span>}
+                    </p>
+                  )}
                   <p className="t-caption mt-0.5 truncate">
                     {r.direction === 'sent' ? 'To' : 'From'} {r.peerName} · {formatBytes(r.totalBytes)} ·{' '}
                     {formatWhen(r.finishedUnix)}
@@ -149,7 +163,7 @@ export function HistoryView() {
                     </p>
                   )}
                 </div>
-                {r.direction === 'received' && r.status === 'completed' && (
+                {r.direction === 'received' && r.status === 'completed' && textPreviewOf(r.title) === null && (
                   <Button
                     size="sm"
                     variant="ghost"

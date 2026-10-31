@@ -10,7 +10,7 @@
 //! `Callbacks.openFd(uri)`, receives a *detached* file descriptor, and takes
 //! ownership of it as a `std::fs::File` (see `FileOpener` in transfer-core).
 
-use bolt_protocol::DeviceKind;
+use bolt_protocol::{DeviceKind, ItemKind};
 use bolt_security::{DeviceId, Identity, PairingUri, TrustStore};
 use bolt_transfer_core::{
     finalize_items, link_test, pair_with, probe, send_files, EndpointTuning, FileOpener,
@@ -225,6 +225,19 @@ fn forward_progress(
     });
 }
 
+/// Short history title for a text item: a one-line preview, never the full content.
+fn text_title(t: &str) -> String {
+    let head: String = t.chars().take(200).collect();
+    let flat = head.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut it = flat.chars();
+    let short: String = it.by_ref().take(40).collect();
+    if it.next().is_some() {
+        format!("Text · {short}…")
+    } else {
+        format!("Text · {short}")
+    }
+}
+
 fn status_of(e: &bolt_transfer_core::TransferError) -> Status {
     use bolt_transfer_core::TransferError as T;
     match e {
@@ -243,14 +256,23 @@ async fn event_loop(core: Arc<Core>, mut events: tokio::sync::mpsc::Receiver<Inc
                     .offer
                     .files
                     .iter()
+                    .filter(|f| f.kind != ItemKind::Text)
                     .take(50)
                     .map(|f| json!({"path": f.path, "size": f.size}))
+                    .collect();
+                // text items are never listed as files: only their sizes are shown
+                let texts: Vec<u64> = o
+                    .offer
+                    .files
+                    .iter()
+                    .filter(|f| f.kind == ItemKind::Text)
+                    .map(|f| f.size)
                     .collect();
                 let msg = json!({
                     "t": "offer", "offerId": id, "peerId": o.peer.id.to_string(),
                     "peerName": o.peer.name, "trusted": o.trusted,
                     "fileCount": o.offer.files.len(), "total": o.total_bytes,
-                    "free": o.free_space, "files": files,
+                    "free": o.free_space, "files": files, "texts": texts,
                 });
                 lock(&core.offers).insert(id, o);
                 core.cb.emit(msg);
@@ -289,6 +311,7 @@ async fn event_loop(core: Arc<Core>, mut events: tokio::sync::mpsc::Receiver<Inc
                             .first()
                             .and_then(|p| p.file_name())
                             .map(|n| n.to_string_lossy().into_owned())
+                            .or_else(|| s.texts.first().map(|t| text_title(t)))
                             .unwrap_or_default(),
                         json!({
                             "t": "finished", "job": transfer_id, "dir": "recv", "ok": true,
@@ -296,6 +319,7 @@ async fn event_loop(core: Arc<Core>, mut events: tokio::sync::mpsc::Receiver<Inc
                             "elapsedMs": s.elapsed.as_millis() as u64,
                             "stages": stages_json(&s.timings, &s.path),
                             "paths": s.saved_paths.iter().map(|p| p.to_string_lossy()).collect::<Vec<_>>(),
+                            "texts": s.texts,
                         }),
                     ),
                     Err(e) => (
@@ -598,7 +622,7 @@ pub extern "system" fn Java_com_bolt_app_NativeBridge_cancel<'l>(
     }
 }
 
-/// Start sending. `items_json` = `[{"uri","rel","size","mtime"}]`. Returns `{"job"}`
+/// Start sending. `items_json` = `[{"uri","rel","size","mtime"}]`; an entry `{"text": "..."}` is sent as a text/link item. Returns `{"job"}`
 /// immediately; progress and the result arrive as events.
 #[no_mangle]
 pub extern "system" fn Java_com_bolt_app_NativeBridge_send<'l>(
@@ -633,22 +657,29 @@ pub extern "system" fn Java_com_bolt_app_NativeBridge_send<'l>(
             Ok(v) => v,
             Err(e) => return err(format!("bad items: {e}")),
         };
-        let items: Vec<SendItem> = parsed
-            .iter()
-            .map(|v| {
-                let size = v["size"].as_u64().unwrap_or(0);
-                let mtime = v["mtime"].as_i64().unwrap_or(0);
-                SendItem::from_opener(
-                    v["rel"].as_str().unwrap_or("file").to_string(),
-                    size,
-                    format!("{size}-{mtime}"),
-                    Arc::new(UriOpener {
-                        uri: v["uri"].as_str().unwrap_or_default().to_string(),
-                        cb: core.cb.clone(),
-                    }),
-                )
-            })
-            .collect();
+        let mut items: Vec<SendItem> = Vec::with_capacity(parsed.len());
+        let mut texts = 0;
+        for v in &parsed {
+            if let Some(t) = v["text"].as_str() {
+                match SendItem::text(t, texts) {
+                    Ok(i) => items.push(i),
+                    Err(e) => return err(e),
+                }
+                texts += 1;
+                continue;
+            }
+            let size = v["size"].as_u64().unwrap_or(0);
+            let mtime = v["mtime"].as_i64().unwrap_or(0);
+            items.push(SendItem::from_opener(
+                v["rel"].as_str().unwrap_or("file").to_string(),
+                size,
+                format!("{size}-{mtime}"),
+                Arc::new(UriOpener {
+                    uri: v["uri"].as_str().unwrap_or_default().to_string(),
+                    cb: core.cb.clone(),
+                }),
+            ));
+        }
         let items = match finalize_items(items) {
             Ok(i) if !i.is_empty() => i,
             Ok(_) => return err("nothing to send"),
@@ -659,7 +690,10 @@ pub extern "system" fn Java_com_bolt_app_NativeBridge_send<'l>(
         lock(&core.jobs).insert(job.clone(), cancel.clone());
         let (reporter, rx) = ProgressReporter::new();
         forward_progress(core.cb.clone(), job.clone(), "send", peer_name.clone(), rx);
-        let title = items[0].rel_path.clone();
+        let title = match items[0].inline.as_deref() {
+            Some(b) => text_title(&String::from_utf8_lossy(b)),
+            None => items[0].rel_path.clone(),
+        };
         let total: u64 = items.iter().map(|i| i.size).sum();
         let count = items.len() as u32;
         let local = local_info(&core);

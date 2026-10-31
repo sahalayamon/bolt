@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { FilePlus2, FolderPlus, Globe } from 'lucide-react';
+import { FilePlus2, FolderPlus, Globe, Type } from 'lucide-react';
 import offerFile from '../assets/offer-file.webp';
 import { api, errorMessage } from '../lib/api';
 import { formatBytes, plural } from '../lib/format';
+import { shortPreview } from '../lib/text';
 import { useApp } from '../store/app';
 import { Button, DeviceIcon, EmptyState, cx } from '../components/ui';
+import { TextComposer } from '../components/TextDialogs';
 import type { ScanSummary } from '../lib/types';
 
 const IP_RE = /^(\d{1,3}(\.\d{1,3}){3}|\[[0-9a-fA-F:]+\]|[0-9a-fA-F:]+)(:\d{1,5})?$/;
@@ -25,13 +27,24 @@ export function SendReviewView() {
   const [target, setTarget] = useState<string>(draft?.deviceId ?? '');
   const [address, setAddress] = useState('');
   const [sending, setSending] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const paths = draft?.paths;
+  const text = draft?.text ?? '';
+  const hasText = text.trim() !== '';
+  // "Send text or link" from the home screen arrives with an empty text: open the editor straight away.
+  useEffect(() => {
+    if (draft?.text === '') setEditing(true);
+  }, [draft]);
   useEffect(() => {
     if (!paths) return;
     let live = true;
-    setScan(null);
     setScanError(null);
+    if (paths.length === 0) {
+      setScan({ fileCount: 0, totalBytes: 0, files: [] });
+      return;
+    }
+    setScan(null);
     api
       .scanPaths(paths)
       .then((s) => live && setScan(s))
@@ -62,7 +75,7 @@ export function SendReviewView() {
   const manual = !fixedDevice && target === MANUAL;
   const addressOk = IP_RE.test(address.trim());
   const recipientOk = fixedDevice ? true : manual ? addressOk : target !== '' && !targetGone;
-  const canSend = !sending && !!scan && scan.fileCount > 0 && recipientOk;
+  const canSend = !sending && !!scan && (scan.fileCount > 0 || hasText) && recipientOk;
 
   const addMore = async (kind: 'files' | 'folder') => {
     try {
@@ -76,10 +89,8 @@ export function SendReviewView() {
   const send = async () => {
     setSending(true);
     try {
-      const started = await api.startSend(
-        draft.paths,
-        fixedDevice ? { deviceId: fixedDevice.id } : manual ? { address: address.trim() } : { deviceId: target },
-      );
+      const to = fixedDevice ? { deviceId: fixedDevice.id } : manual ? { address: address.trim() } : { deviceId: target };
+      const started = hasText ? await api.startSend(draft.paths, to, text) : await api.startSend(draft.paths, to);
       setDraft(null);
       setSendingId(started.id);
       navigate('sending');
@@ -121,10 +132,28 @@ export function SendReviewView() {
           <p className="text-muted">Reading selection…</p>
         ) : (
           <>
-            <p className="text-[18px] font-semibold tracking-tight" aria-live="polite">
-              {plural(scan.fileCount, 'file')} selected
-            </p>
-            <p className="text-[16px] text-muted">{formatBytes(scan.totalBytes)}</p>
+            {scan.fileCount > 0 && (
+              <>
+                <p className="text-[18px] font-semibold tracking-tight" aria-live="polite">
+                  {plural(scan.fileCount, 'file')} selected
+                </p>
+                <p className="text-[16px] text-muted">{formatBytes(scan.totalBytes)}</p>
+              </>
+            )}
+            {hasText && (
+              <div className="mt-1 flex w-full max-w-sm items-center gap-2 rounded-card bg-surface px-3 py-2 text-left ring-1 ring-line">
+                <Type className="h-4 w-4 shrink-0 text-muted" strokeWidth={1.75} aria-hidden="true" />
+                <p className="min-w-0 flex-1 truncate text-[13px]" title={shortPreview(text, 200)}>
+                  <span className="font-medium">Text</span> <span className="text-muted">· {shortPreview(text, 60)}</span>
+                </p>
+                <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+                  Edit
+                </Button>
+                <Button size="sm" variant="ghost" aria-label="Remove text" onClick={() => setDraft({ ...draft, text: undefined })}>
+                  Remove
+                </Button>
+              </div>
+            )}
             <ul aria-label="Files to send" className={cx('mt-2 w-full max-w-xs space-y-0.5 text-[12px] text-muted', !fixedDevice && 'sr-only')}>
               {scan.files.slice(0, 3).map((f) => (
                 <li key={f.name} className="truncate" title={f.name}>
@@ -140,6 +169,11 @@ export function SendReviewView() {
               <Button size="sm" variant="ghost" onClick={() => void addMore('folder')}>
                 <FolderPlus className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" /> Add folder
               </Button>
+              {!hasText && (
+                <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+                  <Type className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" /> Add text or link
+                </Button>
+              )}
             </div>
             {!fixedDevice && (
               <div className="mt-3 flex w-full max-w-sm flex-col items-center gap-2">
@@ -205,6 +239,18 @@ export function SendReviewView() {
           {sending ? 'Starting…' : 'Send'}
         </Button>
       </div>
+      <TextComposer
+        open={editing}
+        initial={text}
+        onSave={(t) => {
+          setDraft({ ...draft, text: t });
+          setEditing(false);
+        }}
+        onClose={() => {
+          setEditing(false);
+          if (draft.text === '') setDraft({ ...draft, text: undefined });
+        }}
+      />
     </div>
   );
 }

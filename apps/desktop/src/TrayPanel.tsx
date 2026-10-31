@@ -10,6 +10,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { api, errorMessage } from './lib/api';
+import { textInfo } from './lib/text';
 import { formatSpeed, percent } from './lib/format';
 import { useAppearance } from './hooks/useAppearance';
 import { useApp } from './store/app';
@@ -91,7 +92,10 @@ export default function TrayPanel() {
               className="w-full cursor-pointer rounded-control bg-surface p-2.5 text-left ring-1 ring-line transition-colors hover:bg-elevated"
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-medium">{t.title || (t.direction === 'sent' ? 'Sending' : 'Receiving')}</span>
+                <span className="truncate font-medium">{(() => {
+                    const x = textInfo(t);
+                    return x ? x.label : t.title || (t.direction === 'sent' ? 'Sending' : 'Receiving');
+                  })()}</span>
                 <span className="t-caption shrink-0 tabular-nums">
                   {t.state === 'transferring' ? `${Math.round(percent(t.bytesDone, t.bytesTotal))}% · ${formatSpeed(t.speedBps)}` : 'Starting…'}
                 </span>

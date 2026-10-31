@@ -4,7 +4,7 @@
 
 use crate::dto::*;
 use bolt_discovery::{Advertisement, DiscoveredDevice, Discovery, DEFAULT_PORT};
-use bolt_protocol::DeviceKind;
+use bolt_protocol::{DeviceKind, ItemKind};
 use bolt_security::{DeviceId, Identity, TrustStore};
 use bolt_transfer_core::*;
 use bolt_transfer_store::{Direction, HistoryEntry, HistoryQuery, Status, Store};
@@ -39,6 +39,26 @@ pub struct RetrySpec {
     pub paths: Vec<PathBuf>,
     pub addr: SocketAddr,
     pub peer: Option<DeviceId>,
+    /// Text or link sent alongside (or instead of) the files. Kept in memory only.
+    pub text: Option<String>,
+}
+
+/// History title for a text transfer: "Text: " plus a short single-line preview. The full text is
+/// never stored.
+pub fn text_title(text: &str) -> String {
+    const MAX: usize = 60;
+    let flat: String = text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .filter(|c| !c.is_control())
+        .collect();
+    if flat.chars().count() > MAX {
+        format!("Text: {}…", flat.chars().take(MAX).collect::<String>())
+    } else {
+        format!("Text: {flat}")
+    }
 }
 
 struct TransferRec {
@@ -565,18 +585,30 @@ impl Core {
     async fn run_send(&self, id: String, spec: RetrySpec, cancel: CancellationToken) {
         let paths = spec.paths.clone();
         let scanned = tokio::task::spawn_blocking(move || scan(&paths)).await;
-        let items = match scanned {
-            Ok(Ok(items)) if !items.is_empty() => items,
-            Ok(Ok(_)) => return self.fail_send(&id, "Nothing to send: no files found".into()),
+        let mut items = match scanned {
+            Ok(Ok(items)) => items,
             Ok(Err(e)) => return self.fail_send(&id, format!("Cannot read selection: {e}")),
             Err(e) => return self.fail_send(&id, e.to_string()),
         };
+        let has_files = !items.is_empty();
+        if let Some(t) = &spec.text {
+            match SendItem::text(t, 0) {
+                Ok(item) => items.push(item),
+                Err(e) => return self.fail_send(&id, e.to_string()),
+            }
+        }
+        if items.is_empty() {
+            return self.fail_send(&id, "Nothing to send: no files found".into());
+        }
         let total: u64 = items.iter().map(|i| i.size).sum();
         let count = items.len() as u32;
-        let first = items
-            .first()
-            .map(|i| i.rel_path.split('/').next().unwrap_or("").to_string())
-            .unwrap_or_default();
+        let first = match (&spec.text, has_files) {
+            (Some(t), false) => text_title(t),
+            _ => items
+                .first()
+                .map(|i| i.rel_path.split('/').next().unwrap_or("").to_string())
+                .unwrap_or_default(),
+        };
         self.update_transfer(&id, |d| {
             d.bytes_total = total;
             d.files_total = count;
@@ -701,7 +733,8 @@ impl Core {
         let first = offer
             .offer
             .files
-            .first()
+            .iter()
+            .find(|f| f.kind != ItemKind::Text)
             .map(|f| f.path.split('/').next().unwrap_or("").to_string())
             .unwrap_or_default();
         lock(&self.offer_titles).insert(id.to_string(), first);
@@ -711,6 +744,7 @@ impl Core {
                 .offer
                 .files
                 .iter()
+                .filter(|f| f.kind != ItemKind::Text)
                 .map(|f| f.path.split('/').count())
                 .collect(),
         );
@@ -761,6 +795,11 @@ impl Core {
                             .map(|f| OfferFileDto {
                                 path: f.path.clone(),
                                 size: f.size,
+                                kind: if f.kind == ItemKind::Text {
+                                    "text"
+                                } else {
+                                    "file"
+                                },
                             })
                             .collect(),
                         download_dir: lock(&self.settings).download_dir.clone(),
@@ -856,7 +895,9 @@ impl Core {
                                     }
                                 }
                                 reveal_items = items;
-                                if d.title.is_empty() {
+                                if s.saved_paths.is_empty() && !s.texts.is_empty() {
+                                    d.title = text_title(&s.texts[0]);
+                                } else if d.title.is_empty() {
                                     d.title = s
                                         .saved_paths
                                         .first()
@@ -876,6 +917,19 @@ impl Core {
                     };
                     self.record_history(&snap);
                     self.emit("transfer-update", snap);
+                    if let Ok(s) = &result {
+                        if !s.texts.is_empty() {
+                            self.attention();
+                            self.emit(
+                                "text-received",
+                                TextReceivedDto {
+                                    transfer_id,
+                                    peer_name: peer.name.clone(),
+                                    texts: s.texts.clone(),
+                                },
+                            );
+                        }
+                    }
                 }
             }
         }

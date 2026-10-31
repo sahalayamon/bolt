@@ -11,6 +11,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,14 +57,27 @@ val PanelContentHeight = 288.dp
 fun OfferContent(o: Offer) {
     val c = Fd.colors
     val single = o.fileCount == 1
-    val name = if (single) (o.files.firstOrNull()?.first?.substringAfterLast('/') ?: "1 file") else "${o.fileCount} files"
+    val name = o.what()
+    val textOnly = o.texts.isNotEmpty() && o.fileCount <= o.texts.size
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.xs)) {
         Text("From ${o.peerName}", style = MaterialTheme.typography.titleMedium, color = c.text, textAlign = TextAlign.Center)
+        if (textOnly) {
+            Box(Modifier.padding(vertical = Space.xs).size(104.dp).clip(CircleShape).background(c.accentSoft), contentAlignment = Alignment.Center) {
+                PickIcon("text", c.accent, Modifier.size(52.dp))
+            }
+            Text(if (o.texts.size == 1) "Text" else "${o.texts.size} texts", style = MaterialTheme.typography.titleMedium, color = c.text, textAlign = TextAlign.Center)
+            Text(
+                (if (o.texts.size == 1) "${o.texts[0]} character${if (o.texts[0] == 1L) "" else "s"}" else "${o.texts.sum()} characters") + if (o.trusted) " · Paired device" else "",
+                style = MaterialTheme.typography.bodyMedium, color = c.textSecondary, textAlign = TextAlign.Center,
+            )
+        } else {
         Image(painterResource(R.drawable.offer_file), contentDescription = null, modifier = Modifier.padding(vertical = Space.xs).size(104.dp))
         Text(name, style = MaterialTheme.typography.titleMedium, color = c.text, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(formatBytes(o.total) + if (o.trusted) " · Paired device" else "", style = MaterialTheme.typography.bodyMedium, color = c.textSecondary, textAlign = TextAlign.Center)
-        if (!single) {
-            o.files.take(3).forEach { (p, _) -> Text(p, style = MaterialTheme.typography.bodySmall, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        }
+        if (!single && !textOnly) {
+            val lines = o.files.map { it.first } + o.texts.map { textSizeLabel(it) }
+            lines.take(3).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             if (o.fileCount > 3) Text("…and ${o.fileCount - 3} more", style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
         }
         o.free?.let { if (it < o.total) Text("Not enough free space (${formatBytes(it)} available).", style = MaterialTheme.typography.bodySmall, color = c.bad, textAlign = TextAlign.Center) }
@@ -91,6 +107,9 @@ fun ProgressRing(fraction: Float?, color: Color, modifier: Modifier = Modifier, 
         content()
     }
 }
+
+/** Text items travel under the name text-N.txt; that is not something to show. */
+private fun isTextName(n: String) = Regex("text-\\d+\\.txt").matches(n)
 
 private fun eta(x: Xfer): String? {
     if (x.speed <= 0 || x.total <= x.done) return null
@@ -122,14 +141,17 @@ fun TransferPanelContent(x: Xfer, more: Int) {
         sending -> "Sending to ${x.peer}"
         else -> "Receiving from ${x.peer}"
     }
+    val textual = x.textOnly || (x.current?.let { isTextName(it) } == true)
     val ringColor = when { done -> c.good; failed -> c.bad; cancelled -> c.warn; else -> c.accent }
     val detail = when {
         saving -> "Copying to your phone's storage"
+        done && x.textOnly -> if (sending) "Text sent" else "Text received"
         done -> x.note ?: "${x.filesTotal} file${if (x.filesTotal == 1) "" else "s"} verified"
         failed -> x.error ?: "Something went wrong. Please try again."
         cancelled -> "Nothing was saved"
         x.state == "connecting" -> "Connecting…"
         x.state == "awaiting_approval" -> "Waiting for them to accept…"
+        textual -> if (sending) "Sending text…" else "Receiving text…"
         else -> buildList {
             if (x.filesTotal > 1) add("File ${minOf(x.filesDone + 1, x.filesTotal)} of ${x.filesTotal}")
             add("${formatBytes(x.done)} of ${formatBytes(x.total)}")
@@ -152,7 +174,7 @@ fun TransferPanelContent(x: Xfer, more: Int) {
             }
         }
         // the header already names the device, so only a file name goes here
-        if (!(done && !sending && x.files.size > 1) && !failed && !cancelled && x.current != null) Text(x.current, style = MaterialTheme.typography.titleMedium, color = c.text, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (!(done && !sending && x.files.size > 1) && !failed && !cancelled && x.current != null && !isTextName(x.current)) Text(x.current, style = MaterialTheme.typography.titleMedium, color = c.text, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(detail, style = MaterialTheme.typography.bodyMedium, color = if (failed) c.bad else c.textSecondary, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
         if (more > 0) Text("+$more more transfer${if (more == 1) "" else "s"} in progress", style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
         if (done && !sending && x.files.size > 1) {

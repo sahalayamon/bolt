@@ -82,6 +82,7 @@ export const api = {
   openDownloadDir: fn(undefined),
   revealTransfer: fn(undefined),
   openReceived: fn(undefined),
+  openLink: fn(undefined),
   receivedPreview: fn(null as string | null),
   dragReceived: fn(undefined),
   openMain: fn(undefined),

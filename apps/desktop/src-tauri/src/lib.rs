@@ -80,6 +80,7 @@ pub fn run() {
     }
     builder
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         // Autostart entries launch "bolt-desktop --background": tray only, window stays hidden.
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -213,6 +214,7 @@ pub fn run() {
             commands::stage_clipboard,
             commands::reveal_transfer,
             commands::open_received,
+            commands::open_link,
             commands::received_preview,
             commands::drag_received,
         ])

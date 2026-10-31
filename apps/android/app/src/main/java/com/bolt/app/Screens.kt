@@ -99,6 +99,10 @@ fun BoltApp(picks: Pickers) {
 
     if (dest != null) offers.firstOrNull()?.let { OfferSheet(it) }
     if (offers.isEmpty()) pairReqs.firstOrNull()?.let { PairRequestSheet(it) }
+    val draft by Engine.textDraft.collectAsState()
+    draft?.let { d -> TextSendSheet(d) { Engine.textDraft.value = null } }
+    val texts by Engine.texts.collectAsState()
+    if (offers.isEmpty() && pairReqs.isEmpty() && draft == null) texts.firstOrNull()?.let { ReceivedTextSheet(it, texts.size - 1) }
 }
 
 private fun kindLabel(k: String) = when (k) { "desktop" -> "Computer"; "phone" -> "Phone"; "tablet" -> "Tablet"; else -> "Device" }
@@ -224,22 +228,29 @@ private fun ActivityScreen(onBack: () -> Unit) {
                 if (history.isEmpty()) EmptyState(Icons.Default.Refresh, "Nothing yet", "Sent and received files will appear here.")
                 history.forEachIndexed { i, h ->
                     if (i > 0) GroupDivider(inset = 40.dp)
+                    val isText = h.title.startsWith(TEXT_TITLE_PREFIX)
                     val dot = when (h.status) { "completed" -> c.good; "cancelled", "rejected" -> c.warn; else -> c.bad }
+                    val preview = h.title.removePrefix(TEXT_TITLE_PREFIX)
+                    val isLink = isText && Regex("https?://[^\\s]+").matches(preview)
                     ListRow(
-                        if (h.files > 1) "${h.title} +${h.files - 1}" else h.title.ifEmpty { "Transfer" },
-                        subtitle = (if (h.dir == "send") "Sent to " else "Received from ") + h.peer + " · " + formatBytes(h.bytes) + " · " +
+                        when {
+                            isText -> (if (isLink) "Link · " else TEXT_TITLE_PREFIX) + preview + if (h.files > 1) " +${h.files - 1}" else ""
+                            h.files > 1 -> "${h.title} +${h.files - 1}"
+                            else -> h.title.ifEmpty { "Transfer" }
+                        },
+                        subtitle = (if (h.dir == "send") "Sent to " else "Received from ") + h.peer + " · " + (if (isText) "" else formatBytes(h.bytes) + " · ") +
                             DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(h.at * 1000)) +
                             (if (h.status != "completed") "\n" + when (h.status) {
                                 "cancelled" -> "Cancelled"
                                 "rejected" -> "Declined"
                                 else -> humanError(h.error, h.peer, h.dir == "send")
                             } else ""),
-                        leading = { StatusDot(dot, h.status) },
+                        leading = if (isText) { { PickIcon(if (isLink) "link" else "text", dot, Modifier.size(22.dp)) } } else { { StatusDot(dot, h.status) } },
                         // only received files can be opened; what you sent stays where it was
-                        trailing = if (h.status == "completed" && h.dir != "send") {
+                        trailing = if (h.status == "completed" && h.dir != "send" && !isText) {
                             { Text("Open", style = MaterialTheme.typography.labelMedium, color = if (h.id in openable) c.accent else c.textTertiary) }
                         } else null,
-                        onClick = if (h.status == "completed" && h.dir != "send") {
+                        onClick = if (h.status == "completed" && h.dir != "send" && !isText) {
                             {
                                 val fs = SavedStore.get(ctx, h.id)
                                 when {

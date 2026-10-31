@@ -52,6 +52,14 @@ export interface Transfer {
 export interface OfferFile {
   path: string;
   size: number;
+  /** "text" items are a note or link, not a file. */
+  kind: 'file' | 'text';
+}
+
+export interface ReceivedText {
+  transferId: string;
+  peerName: string;
+  texts: string[];
 }
 
 export interface Offer {

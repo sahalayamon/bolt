@@ -4,7 +4,7 @@ use crate::core::{now, save_settings, Core, RetrySpec};
 use crate::dto::*;
 use bolt_discovery::parse_manual_endpoint;
 use bolt_security::{DeviceId, PairingUri, TrustStore, TrustedDevice};
-use bolt_transfer_core::{pair_with, scan, TransferConfig};
+use bolt_transfer_core::{pair_with, scan, SendItem, TransferConfig};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
@@ -127,9 +127,15 @@ pub fn start_send(
     core: State<'_, Core>,
     paths: Vec<String>,
     target: SendTarget,
+    text: Option<String>,
 ) -> Res<TransferDto> {
-    if paths.is_empty() {
-        return Err("Choose at least one file or folder".into());
+    let text = text.filter(|t| !t.is_empty());
+    if paths.is_empty() && text.is_none() {
+        return Err("Choose at least one file or folder, or enter some text".into());
+    }
+    if let Some(t) = &text {
+        // Same limits as the core; fail here so the UI can say so before connecting.
+        SendItem::text(t, 0).map_err(|e| e.to_string())?;
     }
     let peer = target
         .device_id
@@ -155,6 +161,7 @@ pub fn start_send(
         paths: paths.into_iter().map(PathBuf::from).collect(),
         addr,
         peer,
+        text,
     };
     Ok(core.spawn_send(None, spec, name))
 }
@@ -392,6 +399,24 @@ pub async fn update_settings(
         core.start_discovery();
     }
     Ok(s)
+}
+
+/// Opens a link from received text in the default browser. Only http(s) URLs, and only because the
+/// user clicked "Open"; the text itself is never opened automatically.
+#[tauri::command]
+pub fn open_link(app: AppHandle, url: String) -> Res<()> {
+    let url = url.trim();
+    let ok = url.len() <= 4096
+        && !url.chars().any(|c| c.is_whitespace() || c.is_control())
+        && (url.starts_with("https://") || url.starts_with("http://"))
+        && url.split("://").nth(1).is_some_and(|rest| !rest.is_empty());
+    if !ok {
+        return Err("Only http and https links can be opened".into());
+    }
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| format!("Cannot open link: {e}"))
 }
 
 /// Opens the configured download folder in the system file manager.

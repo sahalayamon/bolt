@@ -9,8 +9,9 @@ import { TitleBar } from './components/TitleBar';
 import { useIsWide, useSelectedDevice } from './hooks/useSelected';
 import { useAppearance } from './hooks/useAppearance';
 import { pathsFromPasteEvent } from './lib/paste';
-import { IncomingOfferDialog, PairRequestDialog } from './components/Dialogs';
+import { IncomingOfferDialog, PairRequestDialog, SentDialog } from './components/Dialogs';
 import { ReceivingDialog } from './components/ReceivingDialog';
+import { ReceivedTextDialog } from './components/TextDialogs';
 import { HomeView } from './views/Home';
 import { SendReviewView } from './views/SendReview';
 import { SendingView } from './views/Sending';
@@ -202,7 +203,9 @@ export default function App() {
 
       <IncomingOfferDialog />
       <ReceivingDialog />
+      <ReceivedTextDialog />
       <PairRequestDialog />
+      <SentDialog />
       <Toaster
         position="bottom-right"
         theme={themePref}

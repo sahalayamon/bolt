@@ -151,7 +151,10 @@ class TransferService : Service() {
                     val peer = e.optString("peer")
                     val sending = e.optString("dir") == "send"
                     val n = e.optInt("files")
+                    val nTexts = e.optJSONArray("texts")?.length() ?: 0
                     val text = when {
+                        ok && !sending && nTexts > 0 && nTexts == n -> if (n == 1) "Text received from $peer" else "$n texts received from $peer"
+                        ok && sending && e.optBoolean("textOnly") -> "Text sent to $peer"
                         ok && sending -> if (n == 1) "Sent 1 file to $peer" else "Sent $n files to $peer"
                         ok -> e.optString("note").ifEmpty { if (n == 1) "Received 1 file from $peer" else "Received $n files from $peer" }
                         else -> e.optString("note").ifEmpty { humanError(e.optString("error"), peer, sending) }
@@ -173,13 +176,14 @@ class TransferService : Service() {
             0, label,
             PendingIntent.getService(this, req + o.id.hashCode().and(0xfff), Intent(this, TransferService::class.java).setAction(act).putExtra(EXTRA_ID, o.id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT),
         ).build()
-        val what = if (o.fileCount == 1) o.files.firstOrNull()?.first ?: "1 file" else "${o.fileCount} files"
+        val what = o.what()
+        val textOnly = o.texts.isNotEmpty() && o.fileCount <= o.texts.size
         nm().notify(
             offerNotifId(o.id),
             NotificationCompat.Builder(this, CH_ALERT)
                 .setSmallIcon(R.drawable.ic_stat)
-                .setContentTitle("${o.peerName} wants to send you $what")
-                .setContentText(formatBytes(o.total) + if (o.trusted) " · paired device" else " · unknown device")
+                .setContentTitle("${o.peerName} wants to send you ${if (textOnly) "text" else what}")
+                .setContentText((if (textOnly) "${o.texts.sum()} characters" else formatBytes(o.total)) + if (o.trusted) " · paired device" else " · unknown device")
                 .setPriority(NotificationCompat.PRIORITY_HIGH).setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setContentIntent(openApp())
                 .addAction(action(ACTION_ACCEPT, "Accept", 1))

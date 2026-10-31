@@ -16,13 +16,19 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
 data class Offer(
     val id: String, val peerName: String, val peerId: String, val trusted: Boolean,
     val fileCount: Int, val total: Long, val free: Long?, val files: List<Pair<String, Long>>,
+    /** Byte sizes of the text / link items in this offer (they are not files and are never saved). */
+    val texts: List<Long> = emptyList(),
 )
+
+/** Text or a link received from [peer]. Untrusted: always shown as plain text, a link is opened only by an explicit tap. */
+data class ReceivedText(val id: String, val peer: String, val text: String)
 
 data class PairReq(val id: String, val peerName: String, val code: String)
 
@@ -33,6 +39,8 @@ data class Xfer(
     val ok: Boolean = false, val error: String? = null, val note: String? = null,
     /** Files that can be opened once the transfer is done. */
     val files: List<SavedFile> = emptyList(),
+    /** Only text / links are being moved (nothing is saved to storage). */
+    val textOnly: Boolean = false,
 ) {
     val active get() = !finished
 }
@@ -98,6 +106,14 @@ object Engine {
 
     /** Set by the home-screen widget: open the file picker as soon as the app is up. */
     val pickerRequest = MutableStateFlow(false)
+
+    /** Text waiting to be sent: non-null opens the "Text / Link" sheet (empty = a blank field, otherwise shared text). */
+    val textDraft = MutableStateFlow<String?>(null)
+    private val _texts = MutableStateFlow<List<ReceivedText>>(emptyList())
+    /** Received text / links the user has not dismissed yet. */
+    val texts: StateFlow<List<ReceivedText>> = _texts.asStateFlow()
+    fun dismissText(id: String) = _texts.update { l -> l.filterNot { it.id == id } }
+    private val textJobs: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     private val _pending = MutableStateFlow<List<PickedFile>>(emptyList())
     val pending: StateFlow<List<PickedFile>> = _pending.asStateFlow()
@@ -295,6 +311,17 @@ object Engine {
         return null
     }
 
+    /** Send [text] (a note or a link) to a discovered device or a typed `ip[:port]`. Returns an error text or null. */
+    fun sendText(addr: String, peerId: String, peerName: String, text: String): String? {
+        if (text.isBlank()) return humanError("nothing selected")
+        if (!started) return humanError("not started")
+        val items = JSONArray().put(JSONObject().put("text", text))
+        val r = JSONObject(NativeBridge.send(addr, peerId, peerName, items.toString()))
+        if (r.has("error")) return humanError(r.getString("error"), peerName, sending = true, named = true)
+        textJobs += r.getString("job")
+        return null
+    }
+
     fun respondOffer(id: String, accept: Boolean) {
         NativeBridge.respondOffer(id, accept, "")
         _offers.update { l -> l.filterNot { it.id == id } }
@@ -362,7 +389,11 @@ object Engine {
 
     // ---- events from Rust --------------------------------------------------
 
-    private fun upsert(x: Xfer) = _xfers.update { l ->
+    /** Success cards are low priority: whatever needs an answer or attention next (offer, pairing, received text) replaces them. */
+    private fun clearDone() = _xfers.update { l -> l.filterNot { it.finished && it.ok } }
+
+    private fun upsert(x0: Xfer) = _xfers.update { l ->
+        val x = if (x0.job in textJobs) x0.copy(textOnly = true) else x0
         if (l.any { it.job == x.job }) l.map { if (it.job == x.job) x else it } else listOf(x) + l
     }
 
@@ -375,10 +406,13 @@ object Engine {
                     e.getString("offerId"), e.getString("peerName"), e.getString("peerId"), e.getBoolean("trusted"),
                     e.getInt("fileCount"), e.getLong("total"), if (e.isNull("free")) null else e.getLong("free"),
                     (0 until files.length()).map { files.getJSONObject(it).let { f -> f.getString("path") to f.getLong("size") } },
+                    e.optJSONArray("texts")?.let { t -> (0 until t.length()).map { t.getLong(it) } }.orEmpty(),
                 )
-                _offers.update { it + o }
+                // text is inert (shown as plain text, never opened by itself) and capped at 1 MiB: no accept card
+                if (o.texts.isNotEmpty() && o.fileCount <= o.texts.size) kotlin.concurrent.thread { NativeBridge.respondOffer(o.id, true, "") }
+                else { clearDone(); _offers.update { it + o } }
             }
-            "pair_request" -> _pairReqs.update { it + PairReq(e.getString("pairId"), e.getString("peerName"), e.getString("code")) }
+            "pair_request" -> { clearDone(); _pairReqs.update { it + PairReq(e.getString("pairId"), e.getString("peerName"), e.getString("code")) } }
             "progress" -> {
                 val job = e.getString("job")
                 val done = e.getLong("done")
@@ -412,13 +446,25 @@ object Engine {
                 e.optJSONObject("stages")?.let { st ->
                     _lastTransfer.value = TransferDiag(e.getString("dir"), x.peer, x.total, e.optLong("elapsedMs"), st.optString("text"), st.optString("path"))
                 }
-                if (ok && e.getString("dir") == "recv") {
+                val texts = e.optJSONArray("texts")?.let { t -> (0 until t.length()).map { t.getString(it) } }.orEmpty()
+                val paths = e.optJSONArray("paths")
+                val savedCount = paths?.length() ?: 0
+                if (ok && e.getString("dir") == "recv" && texts.isNotEmpty()) {
+                    val peer = x.peer
+                    _texts.update { it + texts.mapIndexed { i, t -> ReceivedText("$job#$i", peer, t) } }
+                }
+                if (ok && e.getString("dir") == "recv" && savedCount == 0 && texts.isNotEmpty()) {
+                    // only text arrived: nothing to copy to storage
+                    textJobs += job
+                    upsert(x2)
+                    clearDone() // the received text itself is the result; no card behind it
+                    _events.tryEmit("finished" to e)
+                } else if (ok && e.getString("dir") == "recv") {
                     // not "done" yet: the files still have to be copied to Downloads, and only then can they be opened
                     upsert(x.copy(finished = false, ok = false, state = "saving"))
-                    val paths = e.getJSONArray("paths")
-                    scope.launch { publishReceived(x, (0 until paths.length()).map { paths.getString(it) }) }
+                    scope.launch { publishReceived(x, (0 until savedCount).map { paths!!.getString(it) }, texts) }
                 } else {
-                    _events.tryEmit("finished" to e)
+                    _events.tryEmit("finished" to e.put("textOnly", job in textJobs))
                 }
                 refreshLists()
             }
@@ -452,7 +498,7 @@ object Engine {
     }
 
     /** Move verified, staged files to Downloads/Bolt (or the folder the user chose). */
-    private fun publishReceived(x: Xfer, paths: List<String>) {
+    private fun publishReceived(x: Xfer, paths: List<String>, texts: List<String>) {
         val tree = destTree?.let { Uri.parse(it) }
         val saved = ArrayList<SavedFile>()
         var failures = 0
@@ -476,6 +522,6 @@ object Engine {
         val note = if (failures == 0) "Saved to $dest" else if (failures == 1) "One file couldn't be copied to your storage. It's still safe in Bolt's own folder." else "$failures files couldn't be copied to your storage. They're still safe in Bolt's own folder."
         SavedStore.put(app, x.job, saved)
         upsert(x.copy(note = note, ok = failures == 0, error = if (failures == 0) null else note, files = saved))
-        _events.tryEmit("finished" to JSONObject().put("t", "finished").put("job", x.job).put("dir", "recv").put("ok", failures == 0).put("peer", x.peer).put("files", paths.size).put("note", note))
+        _events.tryEmit("finished" to JSONObject().put("t", "finished").put("job", x.job).put("dir", "recv").put("ok", failures == 0).put("peer", x.peer).put("files", paths.size + texts.size).put("texts", JSONArray(texts)).put("note", note))
     }
 }

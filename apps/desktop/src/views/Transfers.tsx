@@ -7,12 +7,15 @@ import {
   ArrowLeftRight,
   CheckCircle2,
   FolderOpen,
+  Link2,
+  Type,
   RotateCcw,
   X,
   XCircle,
 } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
 import { formatBytes, formatEta, formatSpeed, percent, plural } from '../lib/format';
+import { textInfo } from '../lib/text';
 import { useApp } from '../store/app';
 import { Badge, Button, Card, EmptyState, IconTile, PageHeader, ProgressBar, SectionTitle, T_BASE } from '../components/ui';
 import type { Transfer, TransferState } from '../lib/types';
@@ -91,8 +94,10 @@ export function TransferRow({ t, onDismiss }: { t: Transfer; onDismiss: (id: str
   const running = ACTIVE.includes(t.state);
   const [cancelling, setCancelling] = useState(false);
   const pct = percent(t.bytesDone, t.bytesTotal);
-  const Icon = t.direction === 'sent' ? ArrowUpFromLine : ArrowDownToLine;
-  const label = `${t.direction === 'sent' ? 'Sending' : 'Receiving'} ${t.title || 'files'}`;
+  const text = textInfo(t);
+  const Icon = text ? (text.label === 'Link' ? Link2 : Type) : t.direction === 'sent' ? ArrowUpFromLine : ArrowDownToLine;
+  const name = text ? text.label : t.title;
+  const label = `${t.direction === 'sent' ? 'Sending' : 'Receiving'} ${name || 'files'}`;
 
   return (
     <motion.li
@@ -110,10 +115,17 @@ export function TransferRow({ t, onDismiss }: { t: Transfer; onDismiss: (id: str
           </IconTile>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <p className="truncate font-medium" title={t.title}>
-                {t.title || (t.direction === 'sent' ? 'Preparing…' : 'Incoming files')}
-              </p>
-              {t.filesTotal > 1 && <Badge>{plural(t.filesTotal, 'file')}</Badge>}
+              {text ? (
+                <p className="truncate font-medium" title={text.preview || undefined}>
+                  {text.label}
+                  {text.preview && <span className="font-normal text-muted"> · {text.preview}</span>}
+                </p>
+              ) : (
+                <p className="truncate font-medium" title={t.title}>
+                  {t.title || (t.direction === 'sent' ? 'Preparing…' : 'Incoming files')}
+                </p>
+              )}
+              {!text && t.filesTotal > 1 && <Badge>{plural(t.filesTotal, 'file')}</Badge>}
             </div>
             <p className="t-caption mt-0.5">
               {t.direction === 'sent' ? 'To' : 'From'} {t.peerName || 'device'} ·{' '}
@@ -135,12 +147,12 @@ export function TransferRow({ t, onDismiss }: { t: Transfer; onDismiss: (id: str
                 {cancelling ? 'Cancelling…' : 'Cancel'}
               </Button>
             )}
-            {t.state === 'completed' && t.direction === 'received' && (
+            {t.state === 'completed' && t.direction === 'received' && !text && (
               <Button size="sm" variant="ghost" onClick={() => void run(() => api.openReceived(t.id))}>
                 Open
               </Button>
             )}
-            {t.state === 'completed' && t.direction === 'received' && (
+            {t.state === 'completed' && t.direction === 'received' && !text && (
               <Button size="sm" variant="ghost" onClick={() => void run(() => api.revealTransfer(t.id))}>
                 <FolderOpen className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" /> Show folder
               </Button>
@@ -154,7 +166,7 @@ export function TransferRow({ t, onDismiss }: { t: Transfer; onDismiss: (id: str
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Dismiss ${t.title || 'transfer'}`}
+                aria-label={`Dismiss ${name || 'transfer'}`}
                 onClick={() => onDismiss(t.id)}
               >
                 <X className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
@@ -174,7 +186,7 @@ export function TransferRow({ t, onDismiss }: { t: Transfer; onDismiss: (id: str
             <div className="t-caption mt-2 flex flex-wrap justify-between gap-x-4 tabular-nums">
               <span>
                 {formatBytes(t.bytesDone)} of {formatBytes(t.bytesTotal)} · {Math.round(t.state === 'completed' ? 100 : pct)}%
-                {t.filesTotal > 1 && ` · file ${Math.min(t.filesDone + 1, t.filesTotal)} of ${t.filesTotal}`}
+                {!text && t.filesTotal > 1 && ` · file ${Math.min(t.filesDone + 1, t.filesTotal)} of ${t.filesTotal}`}
               </span>
               {t.state === 'transferring' && (
                 <span>
@@ -182,7 +194,7 @@ export function TransferRow({ t, onDismiss }: { t: Transfer; onDismiss: (id: str
                 </span>
               )}
             </div>
-            {t.state === 'transferring' && t.currentFile && (
+            {t.state === 'transferring' && t.currentFile && !text && (
               <p className="t-caption mt-1 truncate" title={t.currentFile}>
                 {t.currentFile}
               </p>
@@ -192,8 +204,8 @@ export function TransferRow({ t, onDismiss }: { t: Transfer; onDismiss: (id: str
 
         {t.state === 'completed' && (
           <p className="mt-2.5 flex items-center gap-1.5 text-xs text-ok">
-            <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" /> Every file was verified by BLAKE3
-            before being saved.
+            <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />{' '}
+            {text ? `${text.label} verified by BLAKE3.` : 'Every file was verified by BLAKE3 before being saved.'}
           </p>
         )}
         {t.error && !running && (

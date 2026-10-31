@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Check } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
 import { percent } from '../lib/format';
+import { textInfo } from '../lib/text';
 import { useApp } from '../store/app';
 import { Button } from '../components/ui';
 import { ACTIVE_STATES, ProgressRing, transferSubtitle } from '../components/ProgressRing';
@@ -52,6 +53,7 @@ export function SendingView() {
     }
   };
 
+  const text = textInfo(t);
   return (
     <div className="flex flex-1 flex-col">
       <h1 className="text-[28px] leading-[1.15] font-bold tracking-tight">
@@ -68,8 +70,15 @@ export function SendingView() {
           )}
         </ProgressRing>
         <div className="mt-2 min-w-0 max-w-full">
-          <p className="truncate text-[17px] font-semibold tracking-tight" title={t.currentFile ?? t.title}>
-            {(running && t.currentFile) || t.title || 'Files'}
+          <p className="truncate text-[17px] font-semibold tracking-tight" title={text ? text.preview || undefined : (t.currentFile ?? t.title)}>
+            {text ? (
+              <>
+                {text.label}
+                {text.preview && <span className="font-normal text-muted"> · {text.preview}</span>}
+              </>
+            ) : (
+              (running && t.currentFile) || t.title || 'Files'
+            )}
           </p>
           <p className="t-caption mt-1 tabular-nums">{transferSubtitle(t, running, done)}</p>
           {t.error && !running && (

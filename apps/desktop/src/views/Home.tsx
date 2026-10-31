@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { toast } from 'sonner';
-import { ClipboardPaste, FilePlus2, FolderPlus, Radar, ShieldCheck, ShieldQuestion } from 'lucide-react';
+import { ClipboardPaste, FilePlus2, FolderPlus, Radar, SendHorizontal, ShieldCheck, ShieldQuestion } from 'lucide-react';
 import { pathsFromClipboardApi } from '../lib/paste';
 import { api, errorMessage } from '../lib/api';
+import { MAX_TEXT_BYTES, textBytes } from '../lib/text';
 import { useSelectedDevice } from '../hooks/useSelected';
 import { useApp } from '../store/app';
 import { DeviceAvatar } from '../components/DeviceAvatar';
@@ -21,6 +23,27 @@ async function pick(kind: 'files' | 'folder'): Promise<string[]> {
 export function HomeView() {
   const device = useSelectedDevice();
   const startDraft = useApp((s) => s.startDraft);
+  const setSendingId = useApp((s) => s.setSendingId);
+  const navigate = useApp((s) => s.navigate);
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const tooBig = textBytes(text) > MAX_TEXT_BYTES;
+  const canSendText = !!device && text.trim() !== '' && !tooBig && !sending;
+
+  const sendText = async () => {
+    if (!device || !canSendText) return;
+    setSending(true);
+    try {
+      const started = await api.startSend([], { deviceId: device.id }, text);
+      setText('');
+      setSendingId(started.id);
+      navigate('sending');
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      setSending(false);
+    }
+  };
 
   const choose = async (kind: 'files' | 'folder') => {
     const paths = await pick(kind);
@@ -76,6 +99,37 @@ export function HomeView() {
       </div>
 
       <div className="w-full max-w-lg">
+        <div className="relative mb-2.5">
+          <textarea
+            aria-label="Text or link to send"
+            value={text}
+            rows={1}
+            placeholder="Enter text or link to send…"
+            aria-invalid={tooBig}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void sendText();
+              }
+            }}
+            className="field scroll-thin max-h-32 min-h-[52px] resize-none [field-sizing:content] rounded-card py-3.5 pr-12 text-left text-[15px]"
+          />
+          <button
+            type="button"
+            aria-label="Send"
+            disabled={!canSendText}
+            onClick={() => void sendText()}
+            className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer rounded-full p-1.5 text-muted transition-colors hover:text-accent disabled:cursor-default disabled:opacity-40 disabled:hover:text-muted"
+          >
+            <SendHorizontal className="h-5 w-5" strokeWidth={1.6} aria-hidden="true" />
+          </button>
+          {tooBig && (
+            <p role="alert" className="mt-1 text-left text-xs text-bad">
+              Too long: the limit is 1 MiB
+            </p>
+          )}
+        </div>
         <div className="grid grid-cols-3 gap-2.5">
           <ActionTile icon={<ClipboardPaste />} label="Paste" onClick={() => void paste()} />
           <ActionTile icon={<FilePlus2 />} label="Send files" onClick={() => void choose('files')} />

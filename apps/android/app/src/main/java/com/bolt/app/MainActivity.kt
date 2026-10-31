@@ -118,6 +118,7 @@ class MainActivity : ComponentActivity() {
                 @Suppress("DEPRECATION")
                 val uri = if (Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java) else i.getParcelableExtra(Intent.EXTRA_STREAM)
                 if (uri != null) stageUris(listOf(uri))
+                else i.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.takeIf { it.isNotBlank() }?.let { Engine.textDraft.value = it }
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 @Suppress("DEPRECATION")

@@ -71,6 +71,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
@@ -191,7 +192,7 @@ private fun openNotificationSettings(ctx: Context) {
 
 /** Small line-art icons for the pick tiles and the status line. */
 @Composable
-private fun PickIcon(kind: String, tint: Color, modifier: Modifier = Modifier) {
+fun PickIcon(kind: String, tint: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val w = size.width; val h = size.height; val sw = w * 0.09f
         when (kind) {
@@ -219,6 +220,20 @@ private fun PickIcon(kind: String, tint: Color, modifier: Modifier = Modifier) {
                 }
                 drawPath(path, tint, style = Stroke(sw, join = androidx.compose.ui.graphics.StrokeJoin.Round))
             }
+            "text" -> { // a note with lines of text
+                val x0 = w * 0.18f; val x1 = w * 0.82f; val y0 = h * 0.18f; val y1 = h * 0.82f
+                drawRoundRect(tint, Offset(x0, y0), Size(x1 - x0, y1 - y0), CornerRadius(w * 0.12f), style = Stroke(sw))
+                for ((i, f) in listOf(0.38f, 0.5f, 0.62f).withIndex()) {
+                    drawLine(tint, Offset(w * 0.31f, h * f), Offset(w * (if (i == 2) 0.55f else 0.69f), h * f), sw * 0.9f, StrokeCap.Round)
+                }
+            }
+            "link" -> { // two chain links
+                val lw = w * 0.5f; val lh = h * 0.26f
+                rotate(-45f, Offset(w / 2, h / 2)) {
+                    drawRoundRect(tint, Offset(w * 0.5f - lw * 0.95f, h * 0.5f - lh / 2), Size(lw, lh), CornerRadius(lh / 2), style = Stroke(sw))
+                    drawRoundRect(tint, Offset(w * 0.5f - lw * 0.05f, h * 0.5f - lh / 2), Size(lw, lh), CornerRadius(lh / 2), style = Stroke(sw))
+                }
+            }
             "broadcast" -> {
                 drawCircle(tint, w * 0.09f, Offset(w * 0.5f, h * 0.5f))
                 for ((i, r) in listOf(0.26f, 0.42f).withIndex()) {
@@ -241,7 +256,21 @@ private fun PickTile(label: String, kind: String, onClick: () -> Unit, modifier:
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s, Alignment.CenterVertically),
     ) {
         PickIcon(kind, c.accent, Modifier.size(30.dp))
-        Text(label, style = MaterialTheme.typography.titleMedium, color = c.text)
+        Text(label, style = MaterialTheme.typography.titleMedium, color = c.text, maxLines = 1)
+    }
+}
+
+/** Full-width pick button: icon and label side by side. */
+@Composable
+private fun PickWide(label: String, kind: String, onClick: () -> Unit) {
+    val c = Fd.colors
+    Row(
+        Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(18.dp)).background(if (c.dark) c.surfaceRaised else c.background)
+            .clickable(role = Role.Button, onClick = onClick),
+        horizontalArrangement = Arrangement.spacedBy(Space.s, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PickIcon(kind, c.accent, Modifier.size(26.dp))
+        Text(label, style = MaterialTheme.typography.titleMedium, color = c.text, maxLines = 1)
     }
 }
 
@@ -324,6 +353,7 @@ private fun SendPanelContent(picks: Pickers, pending: List<PickedFile>, armed: D
             PickTile("Photos", "image", picks.photos, Modifier.weight(1f))
             PickTile("Folder", "folder", picks.folder, Modifier.weight(1f))
         }
+        PickWide("Text", "text") { Engine.textDraft.value = "" }
     }
 }
 

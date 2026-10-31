@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { api, errorMessage } from '../lib/api';
+import { textInfo } from '../lib/text';
 import type {
   AppInfo,
   Device,
   Offer,
   PairRequest,
+  ReceivedText,
   Settings,
   Transfer,
   TrustedDevice,
@@ -16,6 +18,8 @@ export interface Draft {
   paths: string[];
   /** Pre-selected target (a discovered device id). */
   deviceId?: string;
+  /** Text or link to send with (or without) the files; '' means the editor is open and empty. */
+  text?: string;
 }
 
 interface AppState {
@@ -31,6 +35,10 @@ interface AppState {
   /** Verification code shown on the initiating side of a pairing. */
   pairCode: string | null;
   draft: Draft | null;
+  /** Text that arrived and has not been dismissed yet, oldest first. */
+  receivedTexts: ReceivedText[];
+  /** Low-priority "sent" card; any new actionable popup (offer, pairing, received text) clears it. */
+  sentNotice: { transferId: string; peerName: string; label: string } | null;
   /** Device chosen in the list (detail pane). */
   selectedId: string | null;
   /** The transfer shown on the "Sending to ..." screen. */
@@ -44,6 +52,9 @@ interface AppState {
   setSendingId: (id: string | null) => void;
   setDraft: (d: Draft | null) => void;
   startDraft: (paths: string[], deviceId?: string) => void;
+  startTextDraft: (deviceId?: string) => void;
+  dismissReceivedText: () => void;
+  dismissSentNotice: () => void;
   setPairCode: (c: string | null) => void;
   upsertTransfer: (t: Transfer) => void;
   pushOffer: (o: Offer) => void;
@@ -70,6 +81,8 @@ export const useApp = create<AppState>((set, get) => ({
   pairRequests: [],
   pairCode: null,
   draft: null,
+  receivedTexts: [],
+  sentNotice: null,
   selectedId: null,
   sendingId: null,
   historyVersion: 0,
@@ -79,7 +92,11 @@ export const useApp = create<AppState>((set, get) => ({
   selectDevice: (selectedId) => set({ selectedId, view: 'home' }),
   setSendingId: (sendingId) => set({ sendingId }),
   setDraft: (draft) => set({ draft }),
-  startDraft: (paths, deviceId) => set({ draft: { paths, deviceId }, view: 'send' }),
+  startDraft: (paths, deviceId) =>
+    set((s) => ({ draft: { paths, deviceId, text: s.draft?.text }, view: 'send' })),
+  startTextDraft: (deviceId) => set({ draft: { paths: [], deviceId, text: '' }, view: 'send' }),
+  dismissReceivedText: () => set((s) => ({ receivedTexts: s.receivedTexts.slice(1) })),
+  dismissSentNotice: () => set({ sentNotice: null }),
   setPairCode: (pairCode) => set({ pairCode }),
   setSettings: (settings) => set({ settings }),
 
@@ -91,6 +108,14 @@ export const useApp = create<AppState>((set, get) => ({
         : [t, ...s.transfers],
     }));
     const wasTerminal = prev ? TERMINAL.has(prev.state) : false;
+    if (t.state === 'completed' && !wasTerminal && t.direction === 'sent') {
+      const info = textInfo(t);
+      // Shown only when nothing actionable is already waiting on the user.
+      const s = get();
+      if (s.offers.length + s.pairRequests.length + s.receivedTexts.length === 0) {
+        set({ sentNotice: { transferId: t.id, peerName: t.peerName || 'device', label: info ? info.label : t.title || 'files' } });
+      }
+    }
     if (TERMINAL.has(t.state) && !wasTerminal && get().settings?.notifications !== false) {
       const who = t.peerName || 'device';
       const what = t.title || 'files';
@@ -105,10 +130,10 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   pushOffer: (o) =>
-    set((s) => (s.offers.some((x) => x.id === o.id) ? s : { offers: [...s.offers, o] })),
+    set((s) => (s.offers.some((x) => x.id === o.id) ? s : { offers: [...s.offers, o], sentNotice: null })),
   resolveOffer: (id) => set((s) => ({ offers: s.offers.filter((o) => o.id !== id) })),
   pushPairRequest: (p) =>
-    set((s) => (s.pairRequests.some((x) => x.id === p.id) ? s : { pairRequests: [...s.pairRequests, p] })),
+    set((s) => (s.pairRequests.some((x) => x.id === p.id) ? s : { pairRequests: [...s.pairRequests, p], sentNotice: null })),
   resolvePairRequest: (id) => set((s) => ({ pairRequests: s.pairRequests.filter((p) => p.id !== id) })),
 
   refreshTrusted: async () => {
@@ -144,6 +169,9 @@ export const useApp = create<AppState>((set, get) => ({
     await sub('history-changed', () => set((s) => ({ historyVersion: s.historyVersion + 1 })));
     await sub('incoming-offer', (o) => get().pushOffer(o));
     await sub('incoming-pair', (p) => get().pushPairRequest(p));
+    await sub('text-received', (t) =>
+      set((s) => (s.receivedTexts.some((x) => x.transferId === t.transferId) ? s : { receivedTexts: [...s.receivedTexts, t], sentNotice: null })),
+    );
     await sub('pair-code', (c) => set({ pairCode: c }));
     await sub('navigate', (v) => set({ view: v as View }));
     await sub('start-draft', (d) => get().startDraft(d.paths, d.deviceId ?? undefined));

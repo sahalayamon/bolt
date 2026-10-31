@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { api, errorMessage } from '../lib/api';
 import { percent } from '../lib/format';
+import { textInfo } from '../lib/text';
 import { useApp } from '../store/app';
 import type { Transfer } from '../lib/types';
 import { ACTIVE_STATES, ProgressRing, transferSubtitle } from './ProgressRing';
@@ -28,7 +29,9 @@ export function ReceivingDialog() {
   }, [incoming, focusId]);
 
   const shown: Transfer | undefined = incoming ?? transfers.find((t) => t.id === focusId);
-  const open = !!shown && shown.direction === 'received' && !hidden.has(shown.id);
+  // A finished text-only transfer has nothing to open or reveal: the received-text dialog takes over.
+  const textOnlyDone = shown?.state === 'completed' && textInfo(shown) !== null;
+  const open = !!shown && shown.direction === 'received' && !hidden.has(shown.id) && !textOnlyDone;
   const hide = () => shown && setHidden((h) => new Set(h).add(shown.id));
 
   const running = !!shown && ACTIVE_STATES.includes(shown.state);
@@ -68,7 +71,7 @@ export function ReceivingDialog() {
 
           <div className="min-w-0 max-w-full">
             <p className="truncate text-[17px] font-semibold tracking-tight" title={shown.currentFile ?? shown.title}>
-              {(running && shown.currentFile) || shown.title || 'Incoming files'}
+              {textInfo(shown)?.label ?? ((running && shown.currentFile) || shown.title || 'Incoming files')}
             </p>
             <p className="t-caption mt-1 tabular-nums">{transferSubtitle(shown, running, done)}</p>
             {shown.error && !running && (

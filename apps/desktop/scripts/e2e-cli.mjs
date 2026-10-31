@@ -243,6 +243,54 @@ try {
   await until(() => /declined|send failed/i.test(cliTx2.out), 15000, 'CLI sees decline').catch(() => {});
   check('declining is reported to the sender', /declined/i.test(cliTx2.out), cliTx2.out.trim().split('\n').pop());
 
+  // ===== text + links =====================================================
+  // CLI -> app: a note with markup (must render as plain text) accepted through the UI.
+  const note = '<b>hi</b> from the CLI é';
+  start(CLI, ['--data', dirs['cli2-data'], 'send', '--to', `127.0.0.1:${APP_PORT}`, '--name', 'CLI-Sender', '--text', note]);
+  const offerCard = () => js(`!!document.querySelector('[role=dialog] [data-testid=offer-text-card]')`);
+  await until(offerCard, 20000, 'text offer');
+  const textOffer = await js(`document.querySelector('[role=dialog]').innerText`);
+  check('offer dialog is a text card: no file name, size, image or folder row', !/text-0|\.txt|bytes?|\d\s?B|Save to/.test(textOffer) && /Text/.test(textOffer) && (await js(`!document.querySelector('[role=dialog] img')`)), textOffer.replace(/\s+/g, ' ').slice(0, 100));
+  await clickButton('Accept');
+  await until(() => js(`!!document.querySelector('[role=dialog] textarea[data-testid=received-text]')`), 20000, 'received text dialog');
+  check('received text is shown as plain text (no HTML parsed), no Open for non-URL', await js(`(() => { const d=[...document.querySelectorAll('[role=dialog]')].find(d=>d.querySelector('textarea[data-testid=received-text]')); const box=d.querySelector('textarea[data-testid=received-text]'); return !!box && box.readOnly && box.value===${JSON.stringify(note)} && !d.querySelector('b') && !/\.txt|folder/i.test(d.innerText) && ![...d.querySelectorAll('button')].some(b=>b.textContent.includes('Open')); })()`));
+  await shot('03b-received-text');
+  await js(`[...document.querySelectorAll('[role=dialog]')].find(d=>d.innerText.includes('from CLI-Sender'))?.querySelectorAll('button')?.forEach((b) => b.textContent.trim() === 'Done' && b.click())`);
+  await sleep(700);
+  // CLI -> app: a link gets an Open button that is never clicked automatically.
+  start(CLI, ['--data', dirs['cli2-data'], 'send', '--to', `127.0.0.1:${APP_PORT}`, '--name', 'CLI-Sender', '--text', 'https://bolt.aymn.in']);
+  await until(offerCard, 20000, 'link offer');
+  await clickButton('Accept');
+  await until(() => js(`[...document.querySelectorAll('[role=dialog] textarea')].some(t=>t.value==='https://bolt.aymn.in')`), 20000, 'received link dialog');
+  check('a received http(s) link shows Open (not auto-opened)', await js(`[...document.querySelectorAll('[role=dialog]')].some(d=>d.innerText.includes('Link from CLI-Sender') && [...d.querySelectorAll('button')].some(b=>b.textContent.includes('Open')))`));
+  await shot('03c-received-link');
+  await js(`[...document.querySelectorAll('[role=dialog]')].find(d=>d.innerText.includes('Link from CLI-Sender'))?.querySelectorAll('button')?.forEach((b) => b.textContent.trim() === 'Done' && b.click())`);
+  await sleep(700);
+  const refused = await invoke('open_link', { url: 'file:///C:/Windows/System32/calc.exe' }).then(() => false, () => true);
+  check('open_link refuses non-http(s) URLs', refused);
+  const thist = await invoke('history_list', { filter: { direction: 'received' } });
+  check('history stores only a short "Text: ..." title for received text', thist.some((h) => h.title === 'Text: https://bolt.aymn.in') && thist.some((h) => h.title.startsWith('Text: <b>hi</b>')));
+  // app -> CLI: text alone and text together with a file.
+  const tt = await invoke('start_send', { paths: [], target: { deviceId: cliId }, text: 'hello from the app' });
+  await until(async () => (await invoke('list_transfers')).find((y) => y.id === tt.id && y.state === 'completed'), 30000, 'text send');
+  await until(() => cliRx.out.includes('hello from the app'), 10000, 'CLI shows text').catch(() => {});
+  check('app→CLI text send delivered', cliRx.out.includes('text received') && cliRx.out.includes('hello from the app'));
+  await until(() => js(`[...document.querySelectorAll('[role=dialog]')].some(d=>d.innerText.includes('Sent successfully'))`), 10000, 'sent popup');
+  check('a "Sent successfully" popup shows after the send and stays', true);
+  const tf = await invoke('start_send', { paths: [join(folder, 'a.jpg')], target: { deviceId: cliId }, text: 'with a file' });
+  await until(async () => (await invoke('list_transfers')).find((y) => y.id === tf.id && y.state === 'completed'), 30000, 'text+file send');
+  await until(() => cliRx.out.includes('with a file'), 10000, 'CLI shows text 2').catch(() => {});
+  check('app→CLI text together with a file delivered', cliRx.out.includes('with a file'));
+  await sleep(500);
+  check('sent popup is still there (no timer)', await js(`[...document.querySelectorAll('[role=dialog]')].some(d=>d.innerText.includes('Sent successfully'))`));
+  const pop = start(CLI, ['--data', dirs['cli2-data'], 'send', '--to', `127.0.0.1:${APP_PORT}`, '--name', 'CLI-Sender', '--text', 'popup replaces']);
+  await until(() => js(`!!document.querySelector('[role=dialog] [data-testid=offer-text-card]')`), 20000, 'offer over sent popup');
+  await sleep(600);
+  check('a new offer dismisses the sent popup automatically', await js(`![...document.querySelectorAll('[role=dialog]')].some(d=>d.innerText.includes('Sent successfully'))`));
+  await clickButton('Decline');
+  const shist = await invoke('history_list', { filter: { direction: 'sent' } });
+  check('sent text is in history with a short title', shist.some((h) => h.title === 'Text: hello from the app'));
+
   // ===== pairing: CLI scans app's QR link; user compares codes in UI =====
   const pi = await invoke('begin_pairing');
   check('pairing link + QR SVG generated', pi.uri.startsWith('bolt://pair?') && pi.qrSvg.includes('<svg'), pi.address);
@@ -274,6 +322,13 @@ try {
   check('settings update applies', s2.deviceName === 'E2E Desktop' && (await invoke('app_info')).deviceName === 'E2E Desktop');
 
   // UI screenshots of the remaining screens
+  const gotoNav = (label) => js(`[...document.querySelectorAll('nav button')].find(b=>b.getAttribute('aria-label')===${JSON.stringify(label)}||b.textContent.trim()===${JSON.stringify(label)})?.click()`);
+  await gotoNav('Transfers');
+  await sleep(600);
+  check('Transfers list names text "Text"/"Link" with no file name or file actions', await js(`(() => { const rows=[...document.querySelectorAll('[data-testid=transfer-row]')].filter(r=>/^(Text|Link)/.test(r.querySelector('p').innerText)); return rows.length>=3 && rows.every(r=>!/\.txt/.test(r.innerText) && ![...r.querySelectorAll('button')].some(b=>/Open|Show folder/.test(b.innerText))) && rows.some(r=>r.innerText.startsWith('Link')); })()`));
+  await gotoNav('History');
+  await sleep(600);
+  check('History lists text as "Text"/"Link" without Open', await js(`(() => { const rows=[...document.querySelectorAll('[data-testid=history-row]')].filter(r=>/^(Text|Link)/.test(r.innerText)); return rows.length>=3 && rows.every(r=>!/\.txt/.test(r.innerText) && ![...r.querySelectorAll('button')].some(b=>/Open/.test(b.innerText))); })()`));
   for (const [label, file] of [['Transfers', '05-transfers'], ['History', '06-history'], ['Devices', '07-devices'], ['Settings', '08-settings']]) {
     await js(`[...document.querySelectorAll('nav button')].find(b=>b.getAttribute('aria-label')===${JSON.stringify(label)}||b.textContent.trim()===${JSON.stringify(label)})?.click()`);
     await sleep(600);

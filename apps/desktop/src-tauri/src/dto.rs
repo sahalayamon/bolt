@@ -101,6 +101,17 @@ impl TransferDto {
 pub struct OfferFileDto {
     pub path: String,
     pub size: u64,
+    /// "file" | "text"
+    pub kind: &'static str,
+}
+
+/// Text or links that arrived in a finished transfer. Untrusted: the UI shows it as plain text.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TextReceivedDto {
+    pub transfer_id: String,
+    pub peer_name: String,
+    pub texts: Vec<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
