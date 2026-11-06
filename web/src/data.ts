@@ -34,6 +34,40 @@ export const MARQUEE = [
   'QR pairing',
 ] as const;
 
+/** "Bolt vs the usual ways" table. First column is Bolt. Keep the claims general and true. */
+export const COMPARE_COLUMNS = ['Bolt', 'Chat apps', 'Email & cloud links', 'USB cable'] as const;
+export const COMPARE_ROWS: readonly { label: string; values: readonly [string, string, string, string] }[] = [
+  { label: 'Needs the internet', values: ['No', 'Yes', 'Yes', 'No'] },
+  { label: 'Needs an account', values: ['No', 'Yes', 'Yes', 'No'] },
+  { label: 'Goes through someone else’s server', values: ['Never', 'Yes', 'Yes', 'No'] },
+  { label: 'Size limits', values: ['None set by Bolt', 'Yes', 'Yes', 'None'] },
+  { label: 'Whole folders', values: ['Yes, structure kept', 'Usually not', 'Usually zipped', 'Yes'] },
+  { label: 'Needs a cable', values: ['No', 'No', 'No', 'Yes'] },
+  { label: 'Works when the devices are far apart', values: ['No', 'Yes', 'Yes', 'No'] },
+] as const;
+
+/** Install steps shown under the download cards. */
+export const INSTALL_HELP = [
+  {
+    platform: 'Windows',
+    steps: [
+      'Download the installer and open it.',
+      'If “Windows protected your PC” appears, click More info.',
+      'Click Run anyway, then follow the installer.',
+      'If Windows Firewall asks, allow Bolt on private networks so your phone can find your PC.',
+    ],
+  },
+  {
+    platform: 'Android',
+    steps: [
+      'Download the APK in your browser and open it.',
+      'If Android says it can’t install from this source, tap Settings and allow it for that browser.',
+      'Go back and tap Install. If Play Protect warns, choose More details, then Install anyway.',
+      'Open Bolt and allow notifications and nearby devices if it asks.',
+    ],
+  },
+] as const;
+
 export const STEPS = [
   { n: '01', title: 'Open Bolt on both', body: 'On the same Wi-Fi, a hotspot, or a USB tether. Nearby devices appear automatically.' },
   { n: '02', title: 'Pair once', body: 'Scan the QR code and confirm the same 6-digit code shows on both screens. Pairing codes are single-use and expire fast.' },

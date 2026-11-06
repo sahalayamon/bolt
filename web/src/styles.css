@@ -320,3 +320,24 @@ details code { display: block; margin-top: 8px; font-family: var(--mono); font-s
 .dl-foot { margin-top: 28px; color: var(--faint); font-size: 15px; }
 .dl-foot a { color: var(--muted); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--line); }
 .dl-foot a:hover { color: var(--lime); }
+
+/* COMPARE */
+.cmp-scroll { margin-top: clamp(32px, 5vw, 56px); overflow-x: auto; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); }
+.cmp { width: 100%; min-width: 640px; border-collapse: collapse; text-align: left; }
+.cmp th, .cmp td { padding: 18px 22px; border-top: 1px solid var(--line); font-size: 16px; }
+.cmp thead th { border-top: 0; color: var(--muted); font-weight: 600; font-size: 14px; letter-spacing: .02em; }
+.cmp tbody th { color: var(--fg); font-weight: 500; }
+.cmp td { color: var(--muted); }
+.cmp .cmp-bolt { background: var(--lime-soft); color: var(--lime); font-weight: 700; }
+.cmp-note { margin-top: 18px; color: var(--faint); font-size: 15px; }
+
+/* INSTALL HELP */
+.install { margin-top: clamp(28px, 4vw, 44px); text-align: left; }
+.install-title { font-size: 22px; margin-bottom: 14px; }
+.install-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.install-card { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 26px 28px; }
+.install-card h4 { font-family: var(--font-display); font-size: 20px; margin-bottom: 14px; }
+.install-card ol { list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 12px; }
+.install-card li { counter-increment: s; position: relative; padding-left: 38px; color: var(--muted); font-size: 16px; line-height: 1.5; }
+.install-card li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px; border-radius: 50%; background: var(--lime-soft); color: var(--lime); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+@media (max-width: 700px) { .install-grid { grid-template-columns: 1fr; } .cmp th, .cmp td { padding: 14px 16px; } }

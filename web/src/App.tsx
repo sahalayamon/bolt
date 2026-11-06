@@ -1,3 +1,4 @@
+import { Compare } from './components/Compare';
 import { DownloadSection } from './components/DownloadSection';
 import { Faq } from './components/Faq';
 import { Features } from './components/Features';
@@ -30,6 +31,7 @@ export function App() {
         <Marquee />
         <Showcase />
         <Features />
+        <Compare />
         <How />
         <Security />
         <Status />

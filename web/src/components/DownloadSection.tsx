@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ANDROID_APK, CHECKSUMS_URL, RELEASES_URL, VERSION, WINDOWS_EXE, WINDOWS_MSI } from '../data';
 import { pointerGlow } from '../hooks/usePointerGlow';
 import { AndroidIcon, WindowsIcon } from './Icons';
+import { InstallHelp } from './InstallHelp';
 import { Reveal } from './Reveal';
 
 interface CardProps {
@@ -61,6 +62,7 @@ export function DownloadSection() {
             </p>
           </PlatformCard>
         </div>
+        <InstallHelp />
         <Reveal as="p" className="dl-foot">
           <a href={CHECKSUMS_URL}>SHA-256 checksums</a> · <a href={RELEASES_URL}>All releases &amp; notes</a>
         </Reveal>
