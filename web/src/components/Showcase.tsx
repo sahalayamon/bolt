@@ -11,7 +11,7 @@ export function Showcase() {
               src="phone-home.jpg"
               alt="The Bolt Android home screen showing nearby devices and the Files, Photos, Folder and Text buttons"
               width={720}
-              height={1600}
+              height={1560}
               loading="lazy"
             />
           </div>
