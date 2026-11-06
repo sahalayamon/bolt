@@ -80,7 +80,7 @@ export const ABOUT = {
 /** The "More from" link above the footer. */
 export const MORE_FROM = { brand: 'AYMN', host: 'aymn.in', href: 'https://aymn.in' } as const;
 
-/** "See it" section next to the phone screenshot (public/phone-home.jpg). */
+/** "See it" section next to the phone screenshot (public/phone-home.webp). */
 export const SHOWCASE = {
   title: ['Open it.', 'Pick a device.'] as const,
   lead: 'This is the whole Android home screen. Nearby devices appear on their own, and what you want to send is one tap away.',

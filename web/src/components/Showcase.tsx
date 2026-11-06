@@ -8,7 +8,7 @@ export function Showcase() {
         <Reveal className="phone-shot">
           <div className="phone-frame">
             <img
-              src="phone-home.jpg"
+              src="phone-home.webp"
               alt="The Bolt Android home screen showing nearby devices and the Files, Photos, Folder and Text buttons"
               width={720}
               height={1560}
