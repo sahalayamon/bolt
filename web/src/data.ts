@@ -18,12 +18,8 @@ export const CHECKSUMS_URL = `${LATEST}/SHA256SUMS.txt`;
 export const RELEASES_URL = `${REPO}/releases/latest`;
 
 export const NAV_LINKS = [
-  { href: '#app', label: 'App' },
   { href: '#features', label: 'Features' },
   { href: '#how', label: 'How it works' },
-  { href: '#security', label: 'Security' },
-  { href: '#status', label: 'Status' },
-  { href: '#faq', label: 'FAQ' },
   { href: '#about', label: 'About' },
 ] as const;
 
