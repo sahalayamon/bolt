@@ -1,4 +1,4 @@
-import { FolderOpen, Lock, Monitor, Radio, RotateCw, ShieldCheck, Wifi, type LucideIcon } from 'lucide-react';
+import { BellRing, FolderOpen, Lock, MessageSquareText, Monitor, Radio, RotateCw, ShieldCheck, Wifi, type LucideIcon } from 'lucide-react';
 import { pointerGlow } from '../hooks/usePointerGlow';
 import { Reveal } from './Reveal';
 
@@ -52,6 +52,18 @@ const ITEMS: readonly Item[] = [
     icon: Wifi,
     title: 'Wi-Fi, hotspot or USB',
     body: 'Same Wi-Fi, a phone hotspot or USB tethering. Any local IP link between the two works.',
+    delay: 0.06,
+  },
+  {
+    icon: MessageSquareText,
+    title: 'Text and links, not files',
+    body: 'Tap Text, type or paste a note or a link, and send it. It arrives as text in a box with a Copy button, never as a file on disk. Up to 1 MiB, encrypted like everything else.',
+    className: 'c-wide',
+  },
+  {
+    icon: BellRing,
+    title: 'Clear confirmations',
+    body: 'When something is sent or received you get a clear pop-up with a Done button. A new one replaces the old, so they never pile up.',
     delay: 0.06,
   },
 ];

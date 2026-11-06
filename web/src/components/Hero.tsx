@@ -110,8 +110,8 @@ export function Hero() {
           other device.
         </Reveal>
         <Reveal as="p" delay={0.12} className="lead">
-          Bolt moves files and whole folders between your Windows PC and Android phone over your own Wi-Fi or hotspot.
-          Encrypted, verified, and it never touches the internet.
+          Bolt moves files, whole folders, notes and links between your Windows PC and Android phone over your own
+          Wi-Fi or hotspot. Encrypted, verified, and it never touches the internet.
         </Reveal>
         <Reveal delay={0.2} className="cta">
           <a className="btn btn-lime" href="#download">

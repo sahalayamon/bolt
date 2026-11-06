@@ -9,9 +9,9 @@ export function Showcase() {
           <div className="phone-frame">
             <img
               src="phone-home.jpg"
-              alt="The Bolt Android home screen showing nearby devices and the Files, Photos and Folder buttons"
-              width={560}
-              height={1132}
+              alt="The Bolt Android home screen showing nearby devices and the Files, Photos, Folder and Text buttons"
+              width={720}
+              height={1600}
               loading="lazy"
             />
           </div>

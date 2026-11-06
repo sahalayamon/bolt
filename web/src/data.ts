@@ -32,6 +32,7 @@ export const MARQUEE = [
   'QUIC + TLS 1.3',
   'BLAKE3 verified',
   'Folders & huge files',
+  'Text & links',
   'No accounts',
   'No telemetry',
   'QR pairing',
@@ -40,7 +41,7 @@ export const MARQUEE = [
 export const STEPS = [
   { n: '01', title: 'Open Bolt on both', body: 'On the same Wi-Fi, a hotspot, or a USB tether. Nearby devices appear automatically.' },
   { n: '02', title: 'Pair once', body: 'Scan the QR code and confirm the same 6-digit code shows on both screens. Pairing codes are single-use and expire fast.' },
-  { n: '03', title: 'Send, accept, done', body: 'Drop files on a device, tap Accept on the other side. Bolt shows real progress and only says “done” after verification.' },
+  { n: '03', title: 'Send, accept, done', body: 'Send files, folders, a note or a link. Tap Accept on the other side. Bolt shows real progress and only says “done” after verification.' },
 ] as const;
 
 export const SECURITY = [
@@ -90,6 +91,7 @@ export const SHOWCASE = {
   points: [
     { title: 'Devices show up by themselves', body: 'Your PC appears as soon as both are on the same network. Nothing to type, nothing to sign in to.' },
     { title: 'Files, Photos or Folder', body: 'Choose what to send with the system pickers. Whole folders keep their structure.' },
+    { title: 'Or just Text', body: 'The full-width Text button sends a note or a link. The other device shows it in a text box with a Copy button, not as a file.' },
     { title: 'Or use an address', body: 'If a network blocks discovery, tap Address and enter the PC’s IP. It still works.' },
   ],
 } as const;
@@ -110,6 +112,10 @@ export const FAQ = [
   {
     q: 'My devices can’t see each other. What now?',
     a: 'Some networks, like guest Wi-Fi or routers with client isolation, block discovery. Use “Send to an IP address”, pair with the QR code, or put both devices on one phone’s hotspot.',
+  },
+  {
+    q: 'Can I send text or a link instead of a file?',
+    a: 'Yes. Use the Text button on the phone, or the text option in the Windows app, to send a note or a link up to 1 MiB. The other device shows it in a text box with a Copy button. It is never saved as a file.',
   },
   {
     q: 'Does it work with big files and folders?',
