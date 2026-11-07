@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatBytes, formatEta, formatSpeed, groupDigits, percent, plural } from '../lib/format';
+import { formatBytes, formatEta, formatSpeed, groupDigits, percent, plural, selectionTitle } from '../lib/format';
 
 describe('format', () => {
   it('formats bytes in binary units', () => {
@@ -25,5 +25,16 @@ describe('format', () => {
     expect(plural(1, 'file')).toBe('1 file');
     expect(plural(2, 'file')).toBe('2 files');
     expect(groupDigits('123456')).toBe('123 456');
+  });
+});
+
+describe('selectionTitle', () => {
+  const file = (name: string) => ({ name, isFolder: false });
+  const folder = (name: string) => ({ name, isFolder: true });
+  it('counts a folder once, not its files', () => {
+    expect(selectionTitle([folder('Photos')], 42)).toBe('Photos');
+    expect(selectionTitle([folder('Photos'), file('a.txt')], 43)).toBe('1 folder and 1 file selected');
+    expect(selectionTitle([folder('A'), folder('B'), file('x'), file('y')], 9)).toBe('2 folders and 2 files selected');
+    expect(selectionTitle([file('a'), file('b')], 2)).toBe('2 files selected');
   });
 });

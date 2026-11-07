@@ -71,7 +71,10 @@ describe('incoming offer dialog', () => {
     render(<IncomingOfferDialog />);
     const dialog = await screen.findByRole('dialog', { name: 'Incoming transfer' });
     expect(within(dialog).queryByText(/has not been paired/i)).toBeNull();
-    expect(within(dialog).getByText('photos/b.jpg')).toBeInTheDocument();
+    // a folder is one item: its name as the title and its file count, not its files
+    expect(within(dialog).getByText('photos')).toBeInTheDocument();
+    expect(within(dialog).getByText((_, el) => el?.tagName === 'P' && /2 files · 3\.00 MB/.test(el.textContent ?? ''))).toBeInTheDocument();
+    expect(within(dialog).queryByText('photos/b.jpg')).toBeNull();
     expect(within(dialog).getByText('Not paired')).toBeInTheDocument();
     expect(within(dialog).getByText('From Alex Laptop')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Decline' })).toHaveFocus());

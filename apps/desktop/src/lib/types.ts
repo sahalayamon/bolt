@@ -149,6 +149,8 @@ export interface ScanSummary {
   fileCount: number;
   totalBytes: number;
   files: { name: string; size: number }[];
+  /** One entry per picked file or folder: a folder is a single entry holding its files. */
+  top: { name: string; isFolder: boolean; fileCount: number; totalBytes: number }[];
 }
 
 export type View = 'home' | 'send' | 'sending' | 'transfers' | 'history' | 'devices' | 'settings';

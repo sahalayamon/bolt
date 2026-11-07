@@ -61,11 +61,38 @@ fun webUrlOrNull(text: String): Uri? {
 /** One line for an offer: "Text · 12 characters", "3 files", "2 files and a text", ... */
 fun Offer.what(): String {
     val fileOnly = fileCount - texts.size
+    val top = topLevel(filePaths())
     return when {
+        texts.isEmpty() && top.any { it.isFolder } -> {
+            val folders = top.count { it.isFolder }
+            val loose = top.size - folders
+            if (folders == 1 && loose == 0) top.first().name
+            else "$folders folder${if (folders == 1) "" else "s"}" + if (loose > 0) " and $loose file${if (loose == 1) "" else "s"}" else ""
+        }
         texts.isEmpty() -> if (fileCount == 1) files.firstOrNull()?.first?.substringAfterLast('/') ?: "1 file" else "$fileCount files"
         fileOnly <= 0 -> if (texts.size == 1) textSizeLabel(texts[0]) else "${texts.size} texts"
         else -> "$fileOnly file${if (fileOnly == 1) "" else "s"} and ${if (texts.size == 1) "a text" else "${texts.size} texts"}"
     }
+}
+
+/** Paths of the real files in the offer (the notes and links in it travel as hidden `text-N.txt` items). */
+fun Offer.filePaths(): List<String> =
+    files.map { it.first }.let { p -> if (texts.isEmpty()) p else p.filterNot { Regex("text-\\d+\\.txt").matches(it) } }
+
+/** One thing the sender picked: a folder (all its files counted once) or a loose file. */
+data class TopItem(val name: String, val isFolder: Boolean, val count: Int)
+
+/** Group `/`-separated file paths by their first component: a folder is one entry, a lone file has no `/`. */
+fun topLevel(paths: List<String>): List<TopItem> {
+    val out = ArrayList<TopItem>()
+    for (p in paths) {
+        val i = p.indexOf('/')
+        val name = if (i < 0) p else p.substring(0, i)
+        val folder = i >= 0
+        val at = out.indexOfFirst { it.isFolder == folder && it.name == name }
+        if (at >= 0) out[at] = out[at].copy(count = out[at].count + 1) else out.add(TopItem(name, folder, 1))
+    }
+    return out
 }
 
 /** The offer only carries the size in bytes, which equals the character count for plain ASCII text and links. */

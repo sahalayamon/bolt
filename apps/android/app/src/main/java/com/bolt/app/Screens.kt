@@ -322,6 +322,7 @@ private fun SettingsScreen(picks: Pickers, onBack: () -> Unit) {
     val mode by Engine.themeMode.collectAsState()
     var name by remember { mutableStateOf(Engine.deviceName) }
     var auto by remember { mutableStateOf(Engine.autoAccept) }
+    var sounds by remember { mutableStateOf(Sounds.enabled) }
     var tree by remember { mutableStateOf(Engine.destTree) }
     val c = Fd.colors
 
@@ -368,6 +369,14 @@ private fun SettingsScreen(picks: Pickers, onBack: () -> Unit) {
                         Switch(auto, { auto = it; Engine.autoAccept = it }, colors = SwitchDefaults.colors(checkedTrackColor = c.good, checkedThumbColor = androidx.compose.ui.graphics.Color.White, uncheckedTrackColor = c.separator, uncheckedThumbColor = androidx.compose.ui.graphics.Color.White, uncheckedBorderColor = androidx.compose.ui.graphics.Color.Transparent))
                     },
                     onClick = { auto = !auto; Engine.autoAccept = auto },
+                )
+                GroupDivider()
+                ListRow(
+                    "Sound effects", subtitle = "A short sound when something arrives, finishes, fails or pairs.",
+                    trailing = {
+                        Switch(sounds, { sounds = it; Sounds.enabled = it; if (it) Sounds.play(Sound.Offer) }, colors = SwitchDefaults.colors(checkedTrackColor = c.good, checkedThumbColor = androidx.compose.ui.graphics.Color.White, uncheckedTrackColor = c.separator, uncheckedThumbColor = androidx.compose.ui.graphics.Color.White, uncheckedBorderColor = androidx.compose.ui.graphics.Color.Transparent))
+                    },
+                    onClick = { sounds = !sounds; Sounds.enabled = sounds; if (sounds) Sounds.play(Sound.Offer) },
                 )
                 GroupDivider()
                 ListRow("Save received files to", subtitle = tree?.let { Uri_lastSegment(it) } ?: "Downloads/Bolt")

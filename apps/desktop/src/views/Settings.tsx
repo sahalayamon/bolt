@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { FolderOpen } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
 import { useApp } from '../store/app';
+import { playSound, setSoundsOn, soundsOn } from '../lib/sounds';
 import { Button, Card, PageHeader, SectionTitle, Switch } from '../components/ui';
 import type { MotionPref, Settings, ThemePref } from '../lib/types';
 
@@ -22,6 +23,7 @@ function Row({ label, hint, htmlFor, children }: { label: string; hint?: string;
 }
 
 export function SettingsView() {
+  const [sounds, setSounds] = useState(soundsOn());
   const saved = useApp((s) => s.settings);
   const info = useApp((s) => s.info);
   const setSettings = useApp((s) => s.setSettings);
@@ -132,6 +134,16 @@ export function SettingsView() {
               description="Show a message when a transfer finishes or fails."
               checked={draft.notifications}
               onChange={(v) => patch({ notifications: v })}
+            />
+            <Switch
+              label="Sound effects"
+              description="A short sound when something arrives, finishes, fails or pairs. Applies to this computer straight away."
+              checked={sounds}
+              onChange={(v) => {
+                setSounds(v);
+                setSoundsOn(v);
+                if (v) playSound('offer');
+              }}
             />
             <Switch
               label="Start Bolt when I sign in"

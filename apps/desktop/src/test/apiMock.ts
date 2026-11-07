@@ -64,7 +64,15 @@ export const api = {
   listTrusted: fn([] as unknown[]),
   renameTrusted: fn(undefined),
   revokeTrusted: fn(undefined),
-  scanPaths: fn({ fileCount: 2, totalBytes: 3072, files: [{ name: 'a.txt', size: 1024 }, { name: 'b.txt', size: 2048 }] }),
+  scanPaths: fn({
+    fileCount: 2,
+    totalBytes: 3072,
+    files: [{ name: 'a.txt', size: 1024 }, { name: 'b.txt', size: 2048 }],
+    top: [
+      { name: 'a.txt', isFolder: false, fileCount: 1, totalBytes: 1024 },
+      { name: 'b.txt', isFolder: false, fileCount: 1, totalBytes: 2048 },
+    ],
+  }),
   startSend: fn(makeTransfer()),
   listTransfers: fn([] as unknown[]),
   cancelTransfer: fn(undefined),

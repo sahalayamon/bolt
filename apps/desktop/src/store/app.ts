@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
+import { playSound } from '../lib/sounds';
 import { api, errorMessage } from '../lib/api';
 import { textInfo } from '../lib/text';
 import type {
@@ -116,6 +117,12 @@ export const useApp = create<AppState>((set, get) => ({
         set({ sentNotice: { transferId: t.id, peerName: t.peerName || 'device', label: info ? info.label : t.title || 'files' } });
       }
     }
+    if (TERMINAL.has(t.state) && !wasTerminal) {
+      // received text has its own sound ("text-received"), so a finished text-only receive stays quiet here
+      if (t.state === 'completed') {
+        if (!(t.direction === 'received' && textInfo(t))) playSound('done');
+      } else if (t.state === 'failed' || t.state === 'rejected') playSound('fail');
+    }
     if (TERMINAL.has(t.state) && !wasTerminal && get().settings?.notifications !== false) {
       const who = t.peerName || 'device';
       const what = t.title || 'files';
@@ -129,16 +136,23 @@ export const useApp = create<AppState>((set, get) => ({
     }
   },
 
-  pushOffer: (o) =>
-    set((s) => (s.offers.some((x) => x.id === o.id) ? s : { offers: [...s.offers, o], sentNotice: null })),
+  pushOffer: (o) => {
+    if (!get().offers.some((x) => x.id === o.id)) playSound('offer');
+    set((s) => (s.offers.some((x) => x.id === o.id) ? s : { offers: [...s.offers, o], sentNotice: null }));
+  },
   resolveOffer: (id) => set((s) => ({ offers: s.offers.filter((o) => o.id !== id) })),
-  pushPairRequest: (p) =>
-    set((s) => (s.pairRequests.some((x) => x.id === p.id) ? s : { pairRequests: [...s.pairRequests, p], sentNotice: null })),
+  pushPairRequest: (p) => {
+    if (!get().pairRequests.some((x) => x.id === p.id)) playSound('pair');
+    set((s) => (s.pairRequests.some((x) => x.id === p.id) ? s : { pairRequests: [...s.pairRequests, p], sentNotice: null }));
+  },
   resolvePairRequest: (id) => set((s) => ({ pairRequests: s.pairRequests.filter((p) => p.id !== id) })),
 
   refreshTrusted: async () => {
     try {
-      set({ trusted: await api.listTrusted() });
+      const trusted = await api.listTrusted();
+      // a new paired device appeared (not the first load)
+      if (get().loaded && trusted.length > get().trusted.length) playSound('pair');
+      set({ trusted });
     } catch (e) {
       toast.error(errorMessage(e));
     }
@@ -169,9 +183,10 @@ export const useApp = create<AppState>((set, get) => ({
     await sub('history-changed', () => set((s) => ({ historyVersion: s.historyVersion + 1 })));
     await sub('incoming-offer', (o) => get().pushOffer(o));
     await sub('incoming-pair', (p) => get().pushPairRequest(p));
-    await sub('text-received', (t) =>
-      set((s) => (s.receivedTexts.some((x) => x.transferId === t.transferId) ? s : { receivedTexts: [...s.receivedTexts, t], sentNotice: null })),
-    );
+    await sub('text-received', (t) => {
+      if (!get().receivedTexts.some((x) => x.transferId === t.transferId)) playSound('text');
+      set((s) => (s.receivedTexts.some((x) => x.transferId === t.transferId) ? s : { receivedTexts: [...s.receivedTexts, t], sentNotice: null }));
+    });
     await sub('pair-code', (c) => set({ pairCode: c }));
     await sub('navigate', (v) => set({ view: v as View }));
     await sub('start-draft', (d) => get().startDraft(d.paths, d.deviceId ?? undefined));

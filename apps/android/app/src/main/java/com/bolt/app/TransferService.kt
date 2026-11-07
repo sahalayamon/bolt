@@ -48,6 +48,8 @@ class TransferService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // A plain start (widget, tile, opening the app) means "be on": the service may still be alive after Stop Bolt, so onCreate alone is not enough
+        if (intent?.action == null) Engine.ensureStarted(this)
         when (intent?.action) {
             ACTION_STOP -> {
                 Engine.shutdown()
@@ -221,14 +223,16 @@ class TransferService : Service() {
 
     private fun createChannels() {
         nm().createNotificationChannel(NotificationChannel(CH_ONGOING, "Transfers", NotificationManager.IMPORTANCE_LOW).apply { description = "Shows that Bolt is ready and the progress of transfers" })
-        nm().createNotificationChannel(NotificationChannel(CH_ALERT, "Incoming requests", NotificationManager.IMPORTANCE_HIGH).apply { description = "Someone wants to send you files or pair" })
-        nm().createNotificationChannel(NotificationChannel(CH_RESULT, "Results", NotificationManager.IMPORTANCE_DEFAULT))
+        // Bolt plays its own sounds (Settings -> Sound effects), so these channels are silent; the old ones, which beeped, are removed
+        runCatching { nm().deleteNotificationChannel("alert"); nm().deleteNotificationChannel("result") }
+        nm().createNotificationChannel(NotificationChannel(CH_ALERT, "Incoming requests", NotificationManager.IMPORTANCE_HIGH).apply { description = "Someone wants to send you files or pair"; setSound(null, null) })
+        nm().createNotificationChannel(NotificationChannel(CH_RESULT, "Results", NotificationManager.IMPORTANCE_DEFAULT).apply { setSound(null, null) })
     }
 
     companion object {
         const val CH_ONGOING = "ongoing"
-        const val CH_ALERT = "alert"
-        const val CH_RESULT = "result"
+        const val CH_ALERT = "alert_quiet"
+        const val CH_RESULT = "result_quiet"
         const val ONGOING_ID = 1
         const val ACTION_STOP = "com.bolt.STOP"
         const val ACTION_ACCEPT = "com.bolt.ACCEPT"

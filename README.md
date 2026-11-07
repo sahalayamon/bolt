@@ -3,8 +3,8 @@
 Offline, encrypted, direct file sharing between Windows and Android over the local
 network (same Wi-Fi or hotspot). No internet, accounts, cloud or telemetry.
 
-**Current milestone: Phase 1–3 engine + Windows desktop app, verified on Windows.** The Android app is not
-built yet — see below. Nothing here claims otherwise.
+**Current milestone: Phase 1–3 engine, Windows desktop app and Android app.** The desktop app was verified on
+Windows; the Android app was verified on an emulator only (no physical phone, see below). Nothing here claims otherwise.
 
 ## What works (verified by automated tests and a real two-process run)
 - QUIC + TLS 1.3 transport with mutual device certificates; identity pinning.
@@ -46,8 +46,10 @@ Not verified / known limits of the desktop app:
   Speeds seen in the run (tens to ~140 MB/s) are loopback numbers, not network performance.
 - The OS drag-and-drop path (Tauri `onDragDropEvent`) and the native file/folder pickers are wired but were **not**
   exercised by automation; sends in the e2e run were started through the same `start_send` command the UI calls.
-- Installers were built but not installed/uninstalled; the app is unsigned (SmartScreen will warn). Auto-update, tray,
-  start-on-login, native OS notifications and sounds do not exist (in-app toasts + taskbar attention only).
+- Installers were built but not installed/uninstalled; the app is unsigned (SmartScreen will warn). Auto-update, native
+  OS notifications and sounds do not exist (in-app toasts + taskbar attention only). The tray, close-to-tray, "Start Bolt
+  when I sign in" and the Explorer right-click menu (`crates/bolt-shell`) do exist, but were only compiled and unit-tested
+  by automation (see [docs/pending.md](docs/pending.md)).
 - An unanswered incoming offer is not auto-dismissed in the UI when the sender gives up; answering then reports that the
   offer is no longer available.
 - The pairing QR encodes the machine's outbound-route LAN IP (override with `BOLT_ADVERTISE_IP`); multi-NIC/VPN
@@ -66,16 +68,31 @@ Run on an Android 14 x86_64 **emulator** against the `bolt` CLI (details: [docs/
 - Pairing in both directions with matching 6-digit codes; the phone's QR decodes (third-party decoder) to a valid pairing URI.
 - The phone discovered the desktop devices over mDNS. (The host cannot see the emulator: NAT.)
 
-Not verified: a physical phone or real Wi-Fi, camera QR scanning (emulator has no camera), share-sheet receive, Photos/Folder pickers,
-notification actions while backgrounded, resume/cancel UI, large transfers. Emulator speeds (~1–5 MB/s) say nothing about real devices.
+Also built on Android since then (checked on the emulator against the `bolt` CLI, not on a physical phone):
+- **Text and links**: a full-width "Text" button and the share sheet (`ACTION_SEND`) open a compose sheet; tapping a device
+  sends at once (an address can be typed instead). Received text is shown directly, with no Accept step, in a read-only
+  field with Copy and, for http(s) links only, Open. History shows "Text" / "Link" rows. Text is limited to 1 MiB and is
+  not saved after you dismiss it.
+- **Cards over other apps**: with "Show requests over other apps" allowed, one floating card shows the incoming offer,
+  turns into the progress card after Accept, then the Received card; received text uses the same card.
+- **Home-screen widget and quick-settings tile**: turn Bolt on or off. Opening the app, the widget or the tile starts
+  Bolt again if it was stopped.
+- "Sent successfully" cards that stay until Done, and a compose sheet that steps aside when an offer arrives.
 
-## What does not exist yet
-- Desktop app (Tauri 2 + React) — handled separately, not part of this milestone.
-- Sounds, onboarding, Windows DPAPI / Android Keystore protection of the private key, per-IP rate limiting.
-- Parallel per-file streams, pause UI (resume exists in the protocol), disk-space exhaustion test on a real full volume.
-- TCP fallback, Wi-Fi Direct, network-interface selection.
+Not verified: a physical phone or real Wi-Fi, camera QR scanning (emulator has no camera), share-sheet receive, Photos/Folder pickers,
+notification actions while backgrounded, resume/cancel UI, large transfers (a 150 MB send over the emulator's lossy
+virtual network once dropped; a 30 MB send worked). Emulator speeds (~1–5 MB/s) say nothing about real devices.
+
+## What does not exist yet (checked against the code)
+- Native Windows notifications (only in-app toasts) and a first-run onboarding flow. (Sound effects exist, with placeholder sounds; see docs/pending.md.)
+- Pause/resume buttons (resume exists in the protocol and is used by Retry).
+- Auto-update and code signing (the release workflow builds unsigned installers).
+- Windows DPAPI / Android Keystore protection of the private key (it is a per-user file), and per-IP rate limiting
+  (pairing is locked after 3 bad proofs, but connections are not rate limited per address).
+- TCP fallback, Wi-Fi Direct, parallel per-file streams, network-interface selection, a port setting in the UI
+  (only `BOLT_PORT`), QR scanning on desktop.
 - Physical Windows↔Android transfer: **never run**.
-- Multi-GB and 10k-file benchmarks beyond the 1 GiB loopback run.
+- Multi-GB and 10k-file benchmarks beyond the 1 GiB loopback run; disk-space exhaustion test on a real full volume.
 - Android: received files are staged in app storage then copied (temporary double disk use); release signing/minification.
 
 ## Docs

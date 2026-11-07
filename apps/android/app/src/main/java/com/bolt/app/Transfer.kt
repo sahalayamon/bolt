@@ -73,12 +73,13 @@ fun OfferContent(o: Offer) {
         } else {
         Image(painterResource(R.drawable.offer_file), contentDescription = null, modifier = Modifier.padding(vertical = Space.xs).size(104.dp))
         Text(name, style = MaterialTheme.typography.titleMedium, color = c.text, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text(formatBytes(o.total) + if (o.trusted) " · Paired device" else "", style = MaterialTheme.typography.bodyMedium, color = c.textSecondary, textAlign = TextAlign.Center)
+        val hasFolder = topLevel(o.filePaths()).any { it.isFolder }
+        Text((if (hasFolder && o.texts.isEmpty()) "${o.fileCount} file${if (o.fileCount == 1) "" else "s"} · " else "") + formatBytes(o.total) + if (o.trusted) " · Paired device" else "", style = MaterialTheme.typography.bodyMedium, color = c.textSecondary, textAlign = TextAlign.Center)
         }
-        if (!single && !textOnly) {
-            val lines = o.files.map { it.first } + o.texts.map { textSizeLabel(it) }
-            lines.take(3).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            if (o.fileCount > 3) Text("…and ${o.fileCount - 3} more", style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
+        val listed = topLevel(o.filePaths()).map { if (it.isFolder) "${it.name}/ · ${it.count} file${if (it.count == 1) "" else "s"}" else it.name } + o.texts.map { textSizeLabel(it) }
+        if (!single && !textOnly && listed.size > 1) {
+            listed.take(3).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            if (listed.size > 3) Text("…and ${listed.size - 3} more", style = MaterialTheme.typography.bodySmall, color = c.textTertiary)
         }
         o.free?.let { if (it < o.total) Text("Not enough free space (${formatBytes(it)} available).", style = MaterialTheme.typography.bodySmall, color = c.bad, textAlign = TextAlign.Center) }
     }
@@ -197,7 +198,7 @@ fun TransferPanelContent(x: Xfer, more: Int) {
         else if (!x.finished) FdButton("Cancel", { Engine.cancel(x.job) }, style = BtnStyle.Danger, height = 46.dp)
         else if (done && !sending && x.files.size == 1) Row(horizontalArrangement = Arrangement.spacedBy(Space.m)) {
             FdButton("Done", { Engine.dismiss(x.job) }, Modifier.weight(1f), BtnStyle.Secondary, fill = false, height = 46.dp)
-            FdButton("Open", { openSavedFile(ctx, x.files[0]) }, Modifier.weight(1f), BtnStyle.Primary, fill = false, height = 46.dp)
+            FdButton("Open", { openSavedFile(ctx, x.files[0]); Engine.dismiss(x.job) }, Modifier.weight(1f), BtnStyle.Primary, fill = false, height = 46.dp)
         }
         else FdButton(if (done) "Done" else "Dismiss", { Engine.dismiss(x.job) }, style = if (done) BtnStyle.Primary else BtnStyle.Secondary, height = 46.dp)
     }

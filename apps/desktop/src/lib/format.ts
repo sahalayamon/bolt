@@ -42,6 +42,31 @@ export function formatWhen(unix: number, nowMs: number = Date.now()): string {
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}, ${time}`;
 }
 
+/** "Photos" for one folder, "2 folders and 3 files", "5 files": what was picked, with a folder counted once. */
+export function selectionTitle(top: { isFolder: boolean; name: string }[], fileCount: number, suffix = ' selected'): string {
+  const folders = top.filter((t) => t.isFolder);
+  const loose = top.length - folders.length;
+  if (folders.length === 0) return `${plural(fileCount, 'file')}${suffix}`;
+  if (folders.length === 1 && loose === 0) return folders[0]!.name;
+  const parts = [plural(folders.length, 'folder')];
+  if (loose > 0) parts.push(plural(loose, 'file'));
+  return `${parts.join(' and ')}${suffix}`;
+}
+
+/** Group an offer's `/`-separated file paths by their first component: a folder is one entry, a lone file has no `/`. */
+export function topLevel(paths: string[]): { name: string; isFolder: boolean; fileCount: number }[] {
+  const top: { name: string; isFolder: boolean; fileCount: number }[] = [];
+  for (const p of paths) {
+    const i = p.indexOf('/');
+    const name = i < 0 ? p : p.slice(0, i);
+    const isFolder = i >= 0;
+    const hit = top.find((t) => t.isFolder === isFolder && t.name === name);
+    if (hit) hit.fileCount += 1;
+    else top.push({ name, isFolder, fileCount: 1 });
+  }
+  return top;
+}
+
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }

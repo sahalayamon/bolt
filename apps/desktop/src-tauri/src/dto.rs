@@ -230,4 +230,15 @@ pub struct ScanDto {
     pub total_bytes: u64,
     /// First 100 files, `/`-separated relative paths.
     pub files: Vec<ScanEntryDto>,
+    /// What was picked, one entry per top-level file or folder (a folder is one entry, not its files).
+    pub top: Vec<ScanTopDto>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanTopDto {
+    pub name: String,
+    pub is_folder: bool,
+    pub file_count: usize,
+    pub total_bytes: u64,
 }

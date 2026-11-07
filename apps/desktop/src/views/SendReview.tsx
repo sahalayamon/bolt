@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { FilePlus2, FolderPlus, Globe, Type } from 'lucide-react';
 import offerFile from '../assets/offer-file.webp';
 import { api, errorMessage } from '../lib/api';
-import { formatBytes, plural } from '../lib/format';
+import { formatBytes, plural, selectionTitle } from '../lib/format';
 import { shortPreview } from '../lib/text';
 import { useApp } from '../store/app';
 import { Button, DeviceIcon, EmptyState, cx } from '../components/ui';
@@ -41,7 +41,7 @@ export function SendReviewView() {
     let live = true;
     setScanError(null);
     if (paths.length === 0) {
-      setScan({ fileCount: 0, totalBytes: 0, files: [] });
+      setScan({ fileCount: 0, totalBytes: 0, files: [], top: [] });
       return;
     }
     setScan(null);
@@ -134,10 +134,13 @@ export function SendReviewView() {
           <>
             {scan.fileCount > 0 && (
               <>
-                <p className="text-[18px] font-semibold tracking-tight" aria-live="polite">
-                  {plural(scan.fileCount, 'file')} selected
+                <p className="max-w-full truncate text-[18px] font-semibold tracking-tight" aria-live="polite">
+                  {selectionTitle(scan.top, scan.fileCount)}
                 </p>
-                <p className="text-[16px] text-muted">{formatBytes(scan.totalBytes)}</p>
+                <p className="text-[16px] text-muted">
+                  {scan.top.some((t) => t.isFolder) ? `${plural(scan.fileCount, 'file')} \u00b7 ` : ''}
+                  {formatBytes(scan.totalBytes)}
+                </p>
               </>
             )}
             {hasText && (
@@ -155,12 +158,12 @@ export function SendReviewView() {
               </div>
             )}
             <ul aria-label="Files to send" className={cx('mt-2 w-full max-w-xs space-y-0.5 text-[12px] text-muted', !fixedDevice && 'sr-only')}>
-              {scan.files.slice(0, 3).map((f) => (
-                <li key={f.name} className="truncate" title={f.name}>
-                  {f.name}
+              {scan.top.slice(0, 3).map((t) => (
+                <li key={`${t.isFolder}:${t.name}`} className="truncate" title={t.name}>
+                  {t.isFolder ? `${t.name}/ \u00b7 ${plural(t.fileCount, 'file')}` : t.name}
                 </li>
               ))}
-              {scan.fileCount > 3 && <li className="text-faint">…and {scan.fileCount - 3} more</li>}
+              {scan.top.length > 3 && <li className="text-faint">…and {scan.top.length - 3} more</li>}
             </ul>
             <div className={cx('flex items-center gap-1', fixedDevice ? 'mt-3' : 'mt-1')}>
               <Button size="sm" variant="ghost" onClick={() => void addMore('files')}>

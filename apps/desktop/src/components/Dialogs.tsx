@@ -2,7 +2,7 @@
 import { toast } from 'sonner';
 import { AlertTriangle, CheckCircle2, Type } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
-import { formatBytes, groupDigits, plural } from '../lib/format';
+import { formatBytes, groupDigits, plural, selectionTitle, topLevel } from '../lib/format';
 import { useApp } from '../store/app';
 import type { Offer } from '../lib/types';
 import offerFile from '../assets/offer-file.webp';
@@ -18,6 +18,8 @@ function offerTitle(offer: Offer): string {
   const texts = offer.files.filter((f) => f.kind === 'text');
   if (texts.length === offer.fileCount) return texts.length === 1 ? 'Text' : plural(texts.length, 'text');
   if (texts.length === 0) {
+    const top = topLevel(offer.files.map((f) => f.path));
+    if (top.some((t) => t.isFolder)) return selectionTitle(top, offer.fileCount, '');
     return offer.fileCount > 1 ? `${offer.fileCount} files` : (offer.files[0]?.path.split('/').pop() ?? '1 file');
   }
   const files = offer.fileCount - texts.length;
@@ -45,6 +47,17 @@ export function IncomingOfferDialog() {
     }
   };
 
+  // What the list under the title shows: a folder is one line ("Photos/ · 42 files"), a note is "Text", a file is its name.
+  const listed = offer
+    ? [
+        ...topLevel(offer.files.filter((f) => f.kind === 'file').map((f) => f.path)).map((t) => ({
+          key: `${t.isFolder}:${t.name}`,
+          label: t.isFolder ? `${t.name}/ \u00b7 ${plural(t.fileCount, 'file')}` : t.name,
+          title: t.name,
+        })),
+        ...offer.files.filter((f) => f.kind === 'text').map((_, i) => ({ key: `text:${i}`, label: 'Text', title: undefined as string | undefined })),
+      ]
+    : [];
   const notEnoughSpace = !!offer && offer.freeSpace != null && offer.freeSpace < offer.totalBytes;
   const folder = dest ?? offer?.downloadDir ?? '';
 
@@ -102,21 +115,24 @@ export function IncomingOfferDialog() {
             {offerTitle(offer)}
           </p>
           <p className="text-muted">
-            <>{formatBytes(offer.totalBytes)} · </>
+            <>
+              {offer.files.some((f) => f.kind === 'file' && f.path.includes('/')) ? `${plural(offer.fileCount, 'file')} \u00b7 ` : ''}
+              {formatBytes(offer.totalBytes)} ·{' '}
+            </>
             {offer.trusted ? (
               <span>Paired device</span>
             ) : (
               <span className="text-warn">Not paired</span>
             )}
           </p>
-          {offer.fileCount > 1 && (
+          {listed.length > 1 && (
             <ul aria-label="Files offered" className="mt-1 w-full space-y-0.5 text-[13px] text-muted">
-              {offer.files.slice(0, 3).map((f) => (
-                <li key={f.path} className="truncate" title={f.kind === 'text' ? undefined : f.path}>
-                  {f.kind === 'text' ? 'Text' : f.path}
+              {listed.slice(0, 3).map((l) => (
+                <li key={l.key} className="truncate" title={l.title}>
+                  {l.label}
                 </li>
               ))}
-              {offer.fileCount > 3 && <li className="text-faint">…and {offer.fileCount - 3} more</li>}
+              {listed.length > 3 && <li className="text-faint">…and {listed.length - 3} more</li>}
             </ul>
           )}
           {notEnoughSpace && (

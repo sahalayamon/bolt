@@ -250,6 +250,7 @@ object Engine {
     fun init(ctx: Context) {
         if (!::app.isInitialized) app = ctx.applicationContext
         SavedStore.init(app)
+        Sounds.init(app)
         themeMode.value = prefs().getString("theme", "dark") ?: "dark"
     }
 
@@ -392,9 +393,17 @@ object Engine {
     /** Success cards are low priority: whatever needs an answer or attention next (offer, pairing, received text) replaces them. */
     private fun clearDone() = _xfers.update { l -> l.filterNot { it.finished && it.ok } }
 
-    private fun upsert(x0: Xfer) = _xfers.update { l ->
-        val x = if (x0.job in textJobs) x0.copy(textOnly = true) else x0
-        if (l.any { it.job == x.job }) l.map { if (it.job == x.job) x else it } else listOf(x) + l
+    private fun upsert(x0: Xfer) {
+        val wasFinished = _xfers.value.firstOrNull { it.job == x0.job }?.finished == true
+        _xfers.update { l ->
+            val x = if (x0.job in textJobs) x0.copy(textOnly = true) else x0
+            if (l.any { it.job == x.job }) l.map { if (it.job == x.job) x else it } else listOf(x) + l
+        }
+        // one sound when a transfer ends (received text has its own sound; a cancel by you is silent)
+        if (x0.finished && !wasFinished) {
+            if (x0.ok) { if (!(x0.dir == "recv" && x0.job in textJobs)) Sounds.play(Sound.Done) }
+            else if (x0.state != "cancelled") Sounds.play(Sound.Fail)
+        }
     }
 
     private fun handle(e: JSONObject) {
@@ -410,9 +419,9 @@ object Engine {
                 )
                 // text is inert (shown as plain text, never opened by itself) and capped at 1 MiB: no accept card, it is shown directly
                 if (o.texts.isNotEmpty() && o.fileCount <= o.texts.size) kotlin.concurrent.thread { NativeBridge.respondOffer(o.id, true, "") }
-                else { clearDone(); _offers.update { it + o } }
+                else { clearDone(); Sounds.play(Sound.Offer); _offers.update { it + o } }
             }
-            "pair_request" -> { clearDone(); _pairReqs.update { it + PairReq(e.getString("pairId"), e.getString("peerName"), e.getString("code")) } }
+            "pair_request" -> { clearDone(); Sounds.play(Sound.Pair); _pairReqs.update { it + PairReq(e.getString("pairId"), e.getString("peerName"), e.getString("code")) } }
             "progress" -> {
                 val job = e.getString("job")
                 val done = e.getLong("done")
@@ -452,6 +461,7 @@ object Engine {
                 if (ok && e.getString("dir") == "recv" && texts.isNotEmpty()) {
                     val peer = x.peer
                     _texts.update { it + texts.mapIndexed { i, t -> ReceivedText("$job#$i", peer, t) } }
+                    Sounds.play(Sound.Text)
                 }
                 if (ok && e.getString("dir") == "recv" && savedCount == 0 && texts.isNotEmpty()) {
                     // only text arrived: nothing to copy to storage
@@ -471,6 +481,7 @@ object Engine {
             "pair_code" -> _pairStatus.update { it.copy(code = e.getString("code"), text = "Check that the other device shows the same code") }
             "paired" -> {
                 _pairStatus.value = PairStatus(code = _pairStatus.value.code, text = "Paired with ${e.getString("peerName")}", done = true)
+                Sounds.play(Sound.Pair)
                 refreshLists()
             }
             "mdns" -> {

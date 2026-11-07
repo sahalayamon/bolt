@@ -108,6 +108,26 @@ pub async fn scan_paths(paths: Vec<String>) -> Res<ScanDto> {
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| format!("Cannot read selection: {e}"))?;
+    // A folder shows up as one entry: group by the first path component (a lone file has no `/`).
+    let mut top: Vec<ScanTopDto> = Vec::new();
+    for i in &items {
+        let (name, is_folder) = match i.rel_path.split_once('/') {
+            Some((first, _)) => (first, true),
+            None => (i.rel_path.as_str(), false),
+        };
+        match top.iter_mut().find(|t| t.is_folder == is_folder && t.name == name) {
+            Some(t) => {
+                t.file_count += 1;
+                t.total_bytes += i.size;
+            }
+            None => top.push(ScanTopDto {
+                name: name.to_string(),
+                is_folder,
+                file_count: 1,
+                total_bytes: i.size,
+            }),
+        }
+    }
     Ok(ScanDto {
         file_count: items.len(),
         total_bytes: items.iter().map(|i| i.size).sum(),
@@ -119,6 +139,7 @@ pub async fn scan_paths(paths: Vec<String>) -> Res<ScanDto> {
                 size: i.size,
             })
             .collect(),
+        top,
     })
 }
 

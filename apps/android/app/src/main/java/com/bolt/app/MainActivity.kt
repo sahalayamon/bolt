@@ -92,6 +92,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Engine.appVisible.value = true
+        // Opening Bolt turns it back on if the widget or tile switched it off while the app sat in recents (onCreate does not run again then)
+        if (!Engine.isRunning()) TransferService.start(this)
         Engine.nudgeDiscovery()
     }
 
